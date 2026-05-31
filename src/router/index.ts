@@ -54,6 +54,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/FuelDataPage.vue'),
     meta: { roles: ['admin'] },
   },
+  {
+    path: '/down-time',
+    name: 'DownTime',
+    component: () => import('../pages/DownTimePage.vue'),
+    meta: { roles: ['admin'] },
+  },
+  {
+    path: '/reason-codes',
+    name: 'ReasonCodes',
+    component: () => import('../pages/ReasonCodePage.vue'),
+    meta: { roles: ['admin'] },
+  },
 ]
 
 const router = createRouter({

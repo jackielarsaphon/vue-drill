@@ -3,7 +3,7 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">
-          {{ which === 'mgmt' ? 'Management Dashboard' : which === 'ops' ? 'Operations Dashboard' : 'Fuel Dashboard' }}
+          {{ which === 'mgmt' ? 'Management Dashboard' : which === 'ops' ? 'Operations Dashboard' : which === 'fuel' ? 'Fuel Dashboard' : 'Down Time Report' }}
         </h1>
         <p class="page-sub">
           {{
@@ -11,44 +11,31 @@
               ? 'Plan completion against the LXML weekly target. Risk grouped by pit.'
               : which === 'ops'
               ? 'Daily drilling output, rig utilisation, and operator performance.'
-              : 'Fuel consumption by rig and shift for the current week.'
+              : which === 'fuel'
+              ? 'Fuel consumption by rig and shift for the current week.'
+              : 'สรุปข้อมูลเวลาหยุดทำงาน'
           }}
         </p>
       </div>
       <div class="seg">
-        <button
-          type="button"
-          :data-active="which === 'mgmt' ? 'true' : undefined"
-          @click="setWhich('mgmt')"
-        >
-          Management
-        </button>
-        <button
-          type="button"
-          :data-active="which === 'ops' ? 'true' : undefined"
-          @click="setWhich('ops')"
-        >
-          Operations
-        </button>
-        <button
-          type="button"
-          :data-active="which === 'fuel' ? 'true' : undefined"
-          @click="setWhich('fuel')"
-        >
-          Fuel
-        </button>
+        <button type="button" :data-active="which === 'mgmt' ? 'true' : undefined" @click="setWhich('mgmt')">Management</button>
+        <button type="button" :data-active="which === 'ops' ? 'true' : undefined" @click="setWhich('ops')">Operations</button>
+        <button type="button" :data-active="which === 'fuel' ? 'true' : undefined" @click="setWhich('fuel')">Fuel</button>
+        <button type="button" :data-active="which === 'dt' ? 'true' : undefined" @click="setWhich('dt')">DT Report</button>
       </div>
     </div>
-    <Management v-if="which === 'mgmt'" key="mgmt" :week="week" />
-    <Operations v-else-if="which === 'ops'" key="ops" :week="week" />
+    <Management    v-if="which === 'mgmt'" key="mgmt" :week="week" />
+    <Operations    v-else-if="which === 'ops'"  key="ops"  :week="week" />
     <FuelDashboard v-else-if="which === 'fuel'" key="fuel" :week="week" />
+    <DownTimeReport v-else-if="which === 'dt'" key="dt" />
   </div>
 </template>
 
 <script setup>
-import Management from '../components/dashboard/Management.vue';
-import Operations from '../components/dashboard/Operations.vue';
+import Management    from '../components/dashboard/Management.vue';
+import Operations    from '../components/dashboard/Operations.vue';
 import FuelDashboard from '../components/dashboard/FuelDashboard.vue';
+import DownTimeReport from './DownTimeReportPage.vue';
 
 const props = defineProps({
   which: { type: String, default: 'mgmt' },

@@ -41,6 +41,9 @@
           />
           <DailyProgressView v-if="view === 'daily-progress'" :week="week" />
           <FuelDataView v-if="view === 'fuel-data'" :week="week" />
+          <DownTimeView v-if="view === 'down-time'" :week="week" />
+          <DownTimeReportView v-if="view === 'dt-report'" />
+          <ReasonCodeView v-if="view === 'reason-codes'" />
           <PlanReviewView v-if="view === 'plan-review'" :week="week" />
           <DashboardsView v-if="view === 'dashboards'" v-model:which="dashWhich" :week="week" />
         </template>
@@ -113,6 +116,9 @@ import DashboardsView from './pages/DashboardPage.vue';
 import UserAccessView from './pages/UserAccessPage.vue';
 import DailyProgressView from './components/StepDailyProgress.vue';
 import FuelDataView from './pages/FuelDataPage.vue';
+import DownTimeView from './pages/DownTimePage.vue';
+import DownTimeReportView from './pages/DownTimeReportPage.vue';
+import ReasonCodeView from './pages/ReasonCodePage.vue';
 import RigView from './pages/RigPage.vue';
 import OperatorView from './pages/OperatorPage.vue';
 
@@ -127,11 +133,13 @@ const NAV = [
   { id: 'data-entry', label: 'Data Entry', roles: ['admin'], tag: 'admin' },
   { id: 'daily-progress', label: 'Daily Progress', roles: ['admin'], tag: '' },
   { id: 'fuel-data', label: 'Fuel Data', roles: ['admin'], tag: '' },
+  { id: 'down-time', label: 'Down Time', roles: ['admin'], tag: '' },
   { id: 'dashboards', label: 'Dashboards', roles: ['admin', 'manager'], tag: '' },
   { id: 'plan-review', label: 'Plan Review', roles: ['admin', 'manager'], tag: '' },
   { id: 'user-access', label: 'User Access', roles: ['manager'], tag: '' },
   { id: 'rigs', label: 'Rigs', roles: ['admin'], tag: '' },
   { id: 'operators', label: 'Operators', roles: ['admin'], tag: '' },
+  { id: 'reason-codes', label: 'Reason Codes', roles: ['admin'], tag: '' },
 ];
 
 const DEFAULTS = {

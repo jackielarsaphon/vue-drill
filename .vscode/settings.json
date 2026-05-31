@@ -1,0 +1,10 @@
+{
+  "deno.enablePaths": ["supabase/functions"],
+  "deno.importMap": "./supabase/functions/import_map.json",
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "claudeCode.useTerminal": true
+}

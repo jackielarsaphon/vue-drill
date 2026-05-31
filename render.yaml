@@ -1,9 +1,9 @@
 services:
   - type: web
     name: vue-drill
-    env: static
+    env: node
     buildCommand: npm install && npm run build
-    publishPath: dist
+    startCommand: npx serve -s dist -l $PORT
     routes:
       - type: rewrite
         source: /*

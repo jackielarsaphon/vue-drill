@@ -1,5 +1,12 @@
 <template>
   <header class="topbar">
+    <button type="button" class="sb-menu-btn" @click="$emit('menu')">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <line x1="2" y1="4.5" x2="16" y2="4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="13.5" x2="16" y2="13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
     <div class="tb-title">
       <span>{{ title }}</span>
       <span class="tb-crumb">· LXML - Copper and Gold Mine</span>
@@ -25,7 +32,7 @@ defineProps({
   role: { type: String, required: true },
 });
 
-defineEmits(['logout']);
+defineEmits(['logout', 'menu']);
 </script>
 
 <style scoped>

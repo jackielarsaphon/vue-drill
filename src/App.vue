@@ -10,7 +10,14 @@
   />
 
   <div v-else class="app" :data-palette="t.palette" :data-density="t.density">
-    <SidebarNav :nav="visibleNav" :view="view" @change-view="view = $event" />
+    <SidebarNav
+      :nav="visibleNav"
+      :view="view"
+      :is-open="sidebarOpen"
+      @change-view="view = $event"
+      @close="sidebarOpen = false"
+    />
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false" />
 
     <main class="main">
       <AppTopbar
@@ -19,6 +26,7 @@
         :user-initial="userInitial"
         :role="role"
         @logout="logout"
+        @menu="sidebarOpen = true"
       />
 
       <WeekBar
@@ -149,6 +157,7 @@ const DEFAULTS = {
 };
 
 const view = ref('user-access');
+const sidebarOpen = ref(false);
 const weekIdx = ref(0);
 const dashWhich = ref('mgmt');
 const loggedIn = ref(!isSupabaseConfigured());

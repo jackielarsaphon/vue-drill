@@ -1,35 +1,18 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { usePatternsStore } from './Patterns.stores'
 import { useDrillLogStore } from './DrillLog.stores'
+import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
 
-const PENDING_KEY = 'tdl_pending_patterns'
-
-function loadPending(): any {
-  try {
-    const s = localStorage.getItem(PENDING_KEY)
-    return s ? JSON.parse(s) : null
-  } catch { return null }
-}
+// Shared, DB-backed pending patterns so every admin (on any device) sees the
+// same queue. Replaces the old per-browser localStorage store.
+const PENDING_TABLE = 'tdl_pending_patterns'
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const notifications      = ref<any[]>([])
-  const pendingNewPatterns = ref<any>(loadPending())
+  const pendingNewPatterns = ref<any>(null)
   const confirmingPending  = ref(false)
-
-  watch(pendingNewPatterns, (val) => {
-    if (val) localStorage.setItem(PENDING_KEY, JSON.stringify(val))
-    else localStorage.removeItem(PENDING_KEY)
-  }, { deep: true })
-
-  // restore bell badge after page reload
-  if (pendingNewPatterns.value) {
-    const n = pendingNewPatterns.value.patterns?.length ?? 0
-    pushPersistent(
-      `${n} Pattern ใหม่รอยืนยัน — กดยืนยันเพื่อเพิ่มใน Blast Patterns`,
-      'pending',
-    )
-  }
+  const loadingPending     = ref(false)
 
   const count      = computed(() => notifications.value.length)
   const hasPending = computed(() => !!pendingNewPatterns.value)
@@ -52,20 +35,102 @@ export const useNotificationsStore = defineStore('notifications', () => {
     notifications.value = notifications.value.filter(n => n.id !== id)
   }
 
-  // ── pending patterns ──────────────────────────────────────────────────────
-  function setPendingPatterns(data: {
+  // ── DB helpers ────────────────────────────────────────────────────────────
+  function sb() {
+    return isSupabaseConfigured() ? getSupabase() : null
+  }
+
+  // Rebuild the single pendingNewPatterns object the bell UI expects from the
+  // raw DB rows (one row per pending pattern, with its drill log rows).
+  function _applyRows(dbRows: any[]) {
+    if (!dbRows || !dbRows.length) {
+      pendingNewPatterns.value = null
+      dismiss('pending-patterns')
+      return
+    }
+    const patterns = dbRows.map(r => r.payload)
+    const rows: any[] = []
+    for (const r of dbRows) for (const dr of (r.drill_rows || [])) rows.push(dr)
+    const first = dbRows[0].payload || {}
+    pendingNewPatterns.value = {
+      patterns,
+      rows,
+      fallbackDate: first.fallback_date || '',
+      weekId: dbRows[0].week_id,
+    }
+    pushPersistent(
+      `${patterns.length} Pattern ใหม่รอยืนยัน — กดยืนยันเพื่อเพิ่มใน Blast Patterns`,
+      'pending',
+    )
+  }
+
+  // Load the shared queue from the DB. Call on bell mount / panel open so any
+  // admin sees what others have left pending.
+  async function refreshPending() {
+    const client = sb()
+    if (!client) return
+    loadingPending.value = true
+    try {
+      const { data, error } = await client
+        .from(PENDING_TABLE)
+        .select('*')
+        .order('created_at', { ascending: true })
+      if (error) {
+        console.warn('[notifications] load pending failed:', error.message)
+        return
+      }
+      _applyRows(data || [])
+    } finally {
+      loadingPending.value = false
+    }
+  }
+
+  async function _deletePending(patternIds: string[]) {
+    const client = sb()
+    if (!client || !patternIds.length) return
+    const { error } = await client.from(PENDING_TABLE).delete().in('pattern_id', patternIds)
+    if (error) console.warn('[notifications] delete pending failed:', error.message)
+  }
+
+  // ── set pending (called from drill-log import) ────────────────────────────
+  async function setPendingPatterns(data: {
     patterns: any[]
     rows: any[]
     fallbackDate: string
     weekId: number
   }) {
-    pendingNewPatterns.value = data
-    pushPersistent(
-      `${data.patterns.length} Pattern ใหม่รอยืนยัน — กดยืนยันเพื่อเพิ่มใน Blast Patterns`,
-      'pending',
-    )
+    const client = sb()
+    if (!client) {
+      // demo / no-supabase fallback: in-memory only
+      pendingNewPatterns.value = data
+      pushPersistent(
+        `${data.patterns.length} Pattern ใหม่รอยืนยัน — กดยืนยันเพื่อเพิ่มใน Blast Patterns`,
+        'pending',
+      )
+      return
+    }
+
+    const { patterns, rows, fallbackDate, weekId } = data
+    const ids = patterns.map(p => p.pattern_id)
+    // de-dupe: drop any existing pending rows for the same pattern ids first
+    await _deletePending(ids)
+
+    const insertRows = patterns.map(p => ({
+      week_id:    weekId,
+      pattern_id: p.pattern_id,
+      pit_name:   p.pit_name,
+      payload:    { ...p, fallback_date: fallbackDate },
+      drill_rows: rows.filter(r => r.pattern_id === p.pattern_id),
+    }))
+    const { error } = await client.from(PENDING_TABLE).insert(insertRows)
+    if (error) {
+      push(`บันทึก pending ผิดพลาด: ${error.message}`, 'error')
+      return
+    }
+    await refreshPending()
   }
 
+  // ── save confirmed patterns + their drill rows to the real tables ──────────
   async function _savePatternsAndRows(patterns: any[], rows: any[], fallbackDate: string, weekId: number) {
     const patternsStore = usePatternsStore()
     const drillLogStore = useDrillLogStore()
@@ -137,19 +202,6 @@ export const useNotificationsStore = defineStore('notifications', () => {
     return { ok, failed: false }
   }
 
-  function _afterConfirmOrReject(remainingPatterns: any[], remainingRows: any[]) {
-    if (remainingPatterns.length) {
-      pendingNewPatterns.value = { ...pendingNewPatterns.value, patterns: remainingPatterns, rows: remainingRows }
-      pushPersistent(
-        `${remainingPatterns.length} Pattern ใหม่รอยืนยัน — กดยืนยันเพื่อเพิ่มใน Blast Patterns`,
-        'pending',
-      )
-    } else {
-      pendingNewPatterns.value = null
-      dismiss('pending-patterns')
-    }
-  }
-
   // ── confirm specific pattern IDs ─────────────────────────────────────────
   async function confirmSpecific(patternIds: string[]) {
     if (!pendingNewPatterns.value || confirmingPending.value) return
@@ -163,9 +215,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const { ok, failed } = await _savePatternsAndRows(toConfirm, toRows, fallbackDate, weekId)
       if (failed) return
 
-      const remaining     = patterns.filter((p: any) => !idSet.has(p.pattern_id))
-      const remainingRows = rows.filter((r: any) => !idSet.has(r.pattern_id))
-      _afterConfirmOrReject(remaining, remainingRows)
+      await _deletePending(toConfirm.map((p: any) => p.pattern_id))
+      await refreshPending()
       push(`ยืนยันแล้ว · สร้าง ${toConfirm.length} Pattern · บันทึก ${ok} รายการ`, 'success', 10000)
     } finally {
       confirmingPending.value = false
@@ -180,17 +231,19 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const { patterns, rows, fallbackDate, weekId } = pendingNewPatterns.value
       const { ok, failed } = await _savePatternsAndRows(patterns, rows, fallbackDate, weekId)
       if (failed) return
-      pendingNewPatterns.value = null
-      dismiss('pending-patterns')
+      await _deletePending(patterns.map((p: any) => p.pattern_id))
+      await refreshPending()
       push(`ยืนยันแล้ว · สร้าง ${patterns.length} Pattern · บันทึก ${ok} รายการ`, 'success', 10000)
     } finally {
       confirmingPending.value = false
     }
   }
 
-  function rejectPendingPatterns() {
-    pendingNewPatterns.value = null
-    dismiss('pending-patterns')
+  async function rejectPendingPatterns() {
+    if (!pendingNewPatterns.value) return
+    const ids = pendingNewPatterns.value.patterns.map((p: any) => p.pattern_id)
+    await _deletePending(ids)
+    await refreshPending()
     push('ปฏิเสธ Pattern ใหม่ทั้งหมดแล้ว', 'info')
   }
 
@@ -207,23 +260,20 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const { ok, failed } = await _savePatternsAndRows(pitPatterns, pitRows, fallbackDate, weekId)
       if (failed) return
 
-      const remainingPatterns = patterns.filter((p: any) => p.pit_name !== pitName)
-      const remainingRows     = rows.filter((r: any) => !pitIds.has(r.pattern_id))
-      _afterConfirmOrReject(remainingPatterns, remainingRows)
+      await _deletePending(pitPatterns.map((p: any) => p.pattern_id))
+      await refreshPending()
       push(`ยืนยันบ่อ ${pitName} · ${pitPatterns.length} Pattern · ${ok} รายการ`, 'success', 8000)
     } finally {
       confirmingPending.value = false
     }
   }
 
-  function rejectPendingByPit(pitName: string) {
+  async function rejectPendingByPit(pitName: string) {
     if (!pendingNewPatterns.value) return
-    const { patterns, rows } = pendingNewPatterns.value
-    const pitIds = new Set(patterns.filter((p: any) => p.pit_name === pitName).map((p: any) => p.pattern_id))
-    _afterConfirmOrReject(
-      patterns.filter((p: any) => p.pit_name !== pitName),
-      rows.filter((r: any) => !pitIds.has(r.pattern_id)),
-    )
+    const { patterns } = pendingNewPatterns.value
+    const ids = patterns.filter((p: any) => p.pit_name === pitName).map((p: any) => p.pattern_id)
+    await _deletePending(ids)
+    await refreshPending()
     push(`ปฏิเสธบ่อ ${pitName} แล้ว`, 'info')
   }
 
@@ -231,11 +281,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
     notifications,
     pendingNewPatterns,
     confirmingPending,
+    loadingPending,
     count,
     hasPending,
     push,
     pushPersistent,
     dismiss,
+    refreshPending,
     setPendingPatterns,
     confirmSpecific,
     confirmPendingPatterns,

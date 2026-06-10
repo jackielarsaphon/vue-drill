@@ -9,7 +9,7 @@
         :data-active="notifStore.count > 0 ? 'true' : undefined"
         :data-pending="notifStore.hasPending ? 'true' : undefined"
         :title="`${notifStore.count} การแจ้งเตือน`"
-        @click="panelOpen = !panelOpen"
+        @click="togglePanel"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -179,11 +179,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import WeekSelector from '../components/WeekSelector.vue';
 import { useNotificationsStore } from '../stores/Notifications.stores.ts';
 
-defineProps({
+const props = defineProps({
   week: { type: Object, required: true },
   fmtDate: { type: Function, required: true },
   // Bell is an admin-only workflow (confirm new patterns); hide for managers.
@@ -193,6 +193,16 @@ defineEmits(['prev', 'next']);
 
 const notifStore = useNotificationsStore();
 const panelOpen  = ref(false);
+
+function togglePanel() {
+  panelOpen.value = !panelOpen.value;
+  if (panelOpen.value) notifStore.refreshPending();
+}
+
+// Load the shared pending queue so any admin sees what others left pending.
+onMounted(() => {
+  if (props.showBell) notifStore.refreshPending();
+});
 
 // group pending patterns by pit_name
 const groupedByPit = computed(() => {

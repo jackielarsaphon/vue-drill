@@ -33,6 +33,7 @@
         v-if="week"
         :week="week"
         :fmt-date="fmtDate"
+        :show-bell="role === 'admin'"
         @prev="weekIdx = Math.max(0, weekIdx - 1)"
         @next="weekIdx = Math.min(weeks.length - 1, weekIdx + 1)"
       />

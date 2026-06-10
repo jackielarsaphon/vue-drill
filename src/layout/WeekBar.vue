@@ -2,7 +2,7 @@
   <div class="week-row">
     <WeekSelector :week="week" :fmt-date="fmtDate" @prev="$emit('prev')" @next="$emit('next')" />
 
-    <div class="bell-wrap" v-click-outside="() => { panelOpen = false }">
+    <div v-if="showBell" class="bell-wrap" v-click-outside="() => { panelOpen = false }">
       <button
         type="button"
         class="bell-btn"
@@ -186,6 +186,8 @@ import { useNotificationsStore } from '../stores/Notifications.stores.ts';
 defineProps({
   week: { type: Object, required: true },
   fmtDate: { type: Function, required: true },
+  // Bell is an admin-only workflow (confirm new patterns); hide for managers.
+  showBell: { type: Boolean, default: true },
 });
 defineEmits(['prev', 'next']);
 

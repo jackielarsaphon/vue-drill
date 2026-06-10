@@ -204,22 +204,6 @@ function calcDailyShiftNet(log: any[], week: any) {
   })
 }
 
-// Sum of planned drilling metres for patterns whose blast date falls in this week.
-// Excludes backlog patterns with no planned_blast_date (which would inflate the daily target).
-function calcWeekBlastPlanM(patterns: any[], week: any): number {
-  if (!week) return 0
-  const start = toDate(week.week_start)
-  const end   = toDate(week.week_end)
-  if (!start || !end) return 0
-  return patterns.reduce((s, p) => {
-    const d = toDate(p.planned_blast_date)
-    if (d && d >= start && d <= end) {
-      return s + Number(p.plan_total_drilling_m || p.effective_m || 0)
-    }
-    return s
-  }, 0)
-}
-
 function calcRemaining(patterns: any[], log: any[]) {
   return patterns
     .filter(p => remainingM(p, log) > 0)
@@ -253,7 +237,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const rigData         = computed(() => calcRigOutput(drillLog.value))
   const operatorData    = computed(() => calcOperatorMetres(drillLog.value))
   const shiftsData      = computed(() => calcDailyShiftNet(drillLog.value, weekMeta.value))
-  const weekBlastPlanM  = computed(() => calcWeekBlastPlanM(patterns.value, weekMeta.value))
   const remainingData   = computed(() => calcRemaining(patterns.value, drillLog.value))
 
   // ── progressPct helper for remaining patterns ──────────────────────────────
@@ -315,7 +298,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   return {
     patterns, drillLog, weekMeta, loading, error, loadedWeekId,
     kpisData, pitProgressData, bitSizeData, cumulData,
-    highRiskData, rigData, operatorData, shiftsData, weekBlastPlanM, remainingData,
+    highRiskData, rigData, operatorData, shiftsData, remainingData,
     patternProgressPct, patternRemainingM, patternRisk,
     loadByWeek, refresh,
   }

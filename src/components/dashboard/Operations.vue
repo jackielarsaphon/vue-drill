@@ -32,12 +32,9 @@
             <span class="legend-item">
               <span class="legend-swatch" style="background: var(--ink-2)" />Night
             </span>
-            <span class="legend-item">
-              <span class="legend-swatch" style="background: var(--green)" />Plan/day
-            </span>
           </div>
         </template>
-        <DailyShiftBars :data="shifts" :plan="dailyPlan" />
+        <DailyShiftBars :data="shifts" />
       </Card>
       <Card title="Per-rig output" sub="Net metres + SMU hours · last 7 days">
         <template #action>
@@ -169,7 +166,6 @@ const totalSmu   = computed(() => rig.value.reduce((s, r) => s + r.smu, 0));
 const activeRigs = computed(() => rig.value.length);
 
 const shifts = computed(() => store.shiftsData);
-const dailyPlan = computed(() => (store.weekBlastPlanM || 0) / 7);
 
 const rem = computed(() =>
   store.remainingData.slice(0, 10).map((p) => {

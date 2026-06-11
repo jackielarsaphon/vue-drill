@@ -13,6 +13,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const pendingNewPatterns = ref<any>(null)
   const confirmingPending  = ref(false)
   const loadingPending     = ref(false)
+  // Once the user opens the bell, hide the persistent pending toast until a
+  // fresh import arrives. Keeps the toast from re-appearing on refreshPending().
+  const pendingToastAcked  = ref(false)
 
   const count      = computed(() => notifications.value.length)
   const hasPending = computed(() => !!pendingNewPatterns.value)
@@ -28,7 +31,16 @@ export const useNotificationsStore = defineStore('notifications', () => {
   function pushPersistent(message: string, type = 'pending') {
     const id = 'pending-patterns'
     notifications.value = notifications.value.filter(n => n.id !== id)
+    // Suppressed once the user has opened the bell for the current queue.
+    if (pendingToastAcked.value) return
     notifications.value.push({ id, message, type, duration: 0, persistent: true })
+  }
+
+  // Called when the bell is opened: drop the pending toast and keep it hidden
+  // until the next fresh import re-arms it.
+  function acknowledgePending() {
+    pendingToastAcked.value = true
+    dismiss('pending-patterns')
   }
 
   function dismiss(id: any) {
@@ -99,6 +111,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     fallbackDate: string
     weekId: number
   }) {
+    // Fresh import → re-arm the persistent toast even if a previous queue was acked.
+    pendingToastAcked.value = false
     const client = sb()
     if (!client) {
       // demo / no-supabase fallback: in-memory only
@@ -286,6 +300,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     hasPending,
     push,
     pushPersistent,
+    acknowledgePending,
     dismiss,
     refreshPending,
     setPendingPatterns,

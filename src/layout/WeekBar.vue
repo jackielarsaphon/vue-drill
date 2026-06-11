@@ -196,7 +196,11 @@ const panelOpen  = ref(false);
 
 function togglePanel() {
   panelOpen.value = !panelOpen.value;
-  if (panelOpen.value) notifStore.refreshPending();
+  if (panelOpen.value) {
+    // Opening the bell acknowledges the queue: hide the persistent toast.
+    notifStore.acknowledgePending();
+    notifStore.refreshPending();
+  }
 }
 
 // Load the shared pending queue so any admin sees what others left pending.

@@ -73,4 +73,26 @@ const router = createRouter({
   routes,
 })
 
+const SESSION_KEY = 'tdl-demo-session'
+
+router.beforeEach((to, _from, next) => {
+  const allowedRoles = to.meta?.roles as string[] | undefined
+  if (!allowedRoles || allowedRoles.length === 0) return next()
+
+  let userRole = ''
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    if (raw) {
+      const session = JSON.parse(raw)
+      userRole = session.role ?? ''
+    }
+  } catch { /* no session */ }
+
+  if (userRole && allowedRoles.includes(userRole)) return next()
+
+  const fallback = userRole === 'admin' ? '/data-entry' : '/dashboards'
+  if (to.path !== fallback) return next(fallback)
+  next()
+})
+
 export default router

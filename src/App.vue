@@ -223,25 +223,31 @@ async function login() {
       loginError.value = 'Please enter user name.';
       return;
     }
-    const { data: prof, error: pErr } = await sb
+    if (!loginPassword.value) {
+      loginError.value = 'Please enter password.';
+      return;
+    }
+    const domain = import.meta.env.VITE_AUTH_EMAIL_DOMAIN?.trim() || 'tdl-drill.local';
+    const email = `${username}@${domain}`;
+    const { data: authData, error: authErr } = await sb.auth.signInWithPassword({
+      email,
+      password: loginPassword.value,
+    });
+    if (authErr || !authData?.user) {
+      loginError.value = 'Username or password is incorrect.';
+      return;
+    }
+    const { data: prof } = await sb
       .from('tdl_profiles')
-      .select('id, username, display_name, role, password')
-      .eq('username', username)
+      .select('id, username, display_name, role')
+      .eq('id', authData.user.id)
       .maybeSingle();
-    if (pErr || !prof) {
-      loginError.value = 'Username or password is incorrect.';
-      return;
-    }
-    if (!loginPassword.value || prof.password !== loginPassword.value) {
-      loginError.value = 'Username or password is incorrect.';
-      return;
-    }
     loginPassword.value = '';
     const appUser = {
-      username: (prof.username || username).toLowerCase(),
-      display_name: prof.display_name || '',
-      role: prof.role,
-      userId: prof.id,
+      username: prof?.username || username,
+      display_name: prof?.display_name || authData.user.user_metadata?.display_name || '',
+      role: prof?.role || authData.user.user_metadata?.role || 'viewer',
+      userId: authData.user.id,
     };
     applyProfile(appUser);
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(appUser));
@@ -262,6 +268,8 @@ async function login() {
 
 async function logout() {
   sessionStorage.removeItem(SESSION_KEY);
+  const sb = getSupabase();
+  if (sb) await sb.auth.signOut().catch(() => {});
   loggedIn.value = false;
   loginPassword.value = '';
   loginError.value = '';

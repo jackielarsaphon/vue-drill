@@ -57,6 +57,7 @@ export const useReasonCodeStore = defineStore('reasonCode', () => {
   async function update(id: number, patch: { code?: string; description?: string }) {
     const idx = codes.value.findIndex(c => c.id === id)
     if (idx < 0) return
+    const previous = { ...codes.value[idx] }
     codes.value[idx] = { ...codes.value[idx], ...patch }
     if (!isSupabaseConfigured()) return
     try {
@@ -67,11 +68,13 @@ export const useReasonCodeStore = defineStore('reasonCode', () => {
         .eq('id', id)
       if (err) throw err
     } catch (err: any) {
+      codes.value[idx] = previous
       error.value = err?.message ?? String(err)
     }
   }
 
   async function remove(id: number) {
+    const snapshot = codes.value
     codes.value = codes.value.filter(c => c.id !== id)
     if (!isSupabaseConfigured()) return
     try {
@@ -82,6 +85,7 @@ export const useReasonCodeStore = defineStore('reasonCode', () => {
         .eq('id', id)
       if (err) throw err
     } catch (err: any) {
+      codes.value = snapshot
       error.value = err?.message ?? String(err)
     }
   }

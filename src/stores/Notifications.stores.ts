@@ -101,7 +101,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const client = sb()
     if (!client || !patternIds.length) return
     const { error } = await client.from(PENDING_TABLE).delete().in('pattern_id', patternIds)
-    if (error) console.warn('[notifications] delete pending failed:', error.message)
+    if (error) {
+      push(`ลบ pending ผิดพลาด: ${error.message}`, 'error')
+    }
   }
 
   // ── set pending (called from drill-log import) ────────────────────────────
@@ -226,8 +228,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const toConfirm  = patterns.filter((p: any) => idSet.has(p.pattern_id))
       const toRows     = rows.filter((r: any) => idSet.has(r.pattern_id))
 
-      const { ok, failed } = await _savePatternsAndRows(toConfirm, toRows, fallbackDate, weekId)
-      if (failed) return
+      const result = await _savePatternsAndRows(toConfirm, toRows, fallbackDate, weekId)
+      if (!result || result.failed) return
+      const { ok } = result
 
       await _deletePending(toConfirm.map((p: any) => p.pattern_id))
       await refreshPending()
@@ -243,8 +246,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
     confirmingPending.value = true
     try {
       const { patterns, rows, fallbackDate, weekId } = pendingNewPatterns.value
-      const { ok, failed } = await _savePatternsAndRows(patterns, rows, fallbackDate, weekId)
-      if (failed) return
+      const result = await _savePatternsAndRows(patterns, rows, fallbackDate, weekId)
+      if (!result || result.failed) return
+      const { ok } = result
       await _deletePending(patterns.map((p: any) => p.pattern_id))
       await refreshPending()
       push(`ยืนยันแล้ว · สร้าง ${patterns.length} Pattern · บันทึก ${ok} รายการ`, 'success', 10000)
@@ -271,8 +275,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
       const pitIds      = new Set(pitPatterns.map((p: any) => p.pattern_id))
       const pitRows     = rows.filter((r: any) => pitIds.has(r.pattern_id))
 
-      const { ok, failed } = await _savePatternsAndRows(pitPatterns, pitRows, fallbackDate, weekId)
-      if (failed) return
+      const result = await _savePatternsAndRows(pitPatterns, pitRows, fallbackDate, weekId)
+      if (!result || result.failed) return
+      const { ok } = result
 
       await _deletePending(pitPatterns.map((p: any) => p.pattern_id))
       await refreshPending()

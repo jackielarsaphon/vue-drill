@@ -1,16 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { configuredClient } from '../lib/supabaseHelpers'
+import { toIsoDate } from '../lib/dateUtils'
 import { DRILL_LOG } from '../components/data.js'
-import { cloneRow, toIsoDate } from '../components/demo.js'
+import { cloneRow } from '../components/demo.js'
 
 let nextLogId = 50000
-
-function configuredClient() {
-  const sb = getSupabase()
-  if (!sb) throw new Error('Supabase not configured')
-  return sb
-}
 
 function ensureLogId(row: any) {
   if (!row.id) row.id = nextLogId++

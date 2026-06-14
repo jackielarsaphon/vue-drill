@@ -1,18 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { configuredClient } from '../lib/supabaseHelpers'
 import { OPERATORS } from '../components/data.js'
 
 export interface Operator {
   operator_id: string
   name: string
   db_id?: number
-}
-
-function configuredClient() {
-  const sb = getSupabase()
-  if (!sb) throw new Error('Supabase not configured')
-  return sb
 }
 
 export const useOperatorsStore = defineStore('operators', () => {

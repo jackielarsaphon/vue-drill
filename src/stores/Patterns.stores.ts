@@ -1,27 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { configuredClient } from '../lib/supabaseHelpers'
+import { toIsoDate } from '../lib/dateUtils'
 import { PATTERNS } from '../components/data.js'
 import { cloneRow } from '../components/demo.js'
 
 let nextLocalId = 100000
 
-function configuredClient() {
-  const sb = getSupabase()
-  if (!sb) throw new Error('Supabase not configured')
-  return sb
-}
-
 function ensureLocalId(row: any) {
   if (!row.id) row.id = nextLocalId++
   return row
-}
-
-function isoDate(d: any): string | null {
-  if (!d) return null
-  if (d instanceof Date) return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
-  const s = String(d).slice(0, 10)
-  return s || null
 }
 
 function toDbRow(p: any) {
@@ -41,8 +30,8 @@ function toDbRow(p: any) {
     effective_m:           p.effective_m           ?? 0,
     actual_drilling_m:     p.actual_drilling_m     ?? 0,
     drilling_pct:          p.drilling_pct          ?? 0,
-    planned_blast_date:    isoDate(p.planned_blast_date),
-    actual_blast_date:     isoDate(p.actual_blast_date),
+    planned_blast_date:    toIsoDate(p.planned_blast_date),
+    actual_blast_date:     toIsoDate(p.actual_blast_date),
     plan_blast_vol_bcm:    p.plan_blast_vol_bcm    ?? 0,
     actual_blast_vol_bcm:  p.actual_blast_vol_bcm  ?? 0,
     blast_td_updated:      p.blast_td_updated      ?? false,

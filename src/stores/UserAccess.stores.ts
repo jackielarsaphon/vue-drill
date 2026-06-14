@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getSupabase } from '../lib/supabaseClient.js'
+import { configuredClient } from '../lib/supabaseHelpers'
 
 export interface Profile {
   id: string
@@ -26,12 +26,6 @@ export interface UpdateProfileInput {
   role?: string
   job_title?: string
   password?: string
-}
-
-function configuredClient() {
-  const supabase = getSupabase()
-  if (!supabase) throw new Error('Supabase not configured')
-  return supabase
 }
 
 function normalizeProfile(p: Partial<Profile>): Profile {

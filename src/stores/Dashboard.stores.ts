@@ -1,40 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
-import {
-  kpis,
-  pitProgress,
-  bitSizeDistribution,
-  cumulativeProgress,
-  highRiskByPit,
-  drillLogFor,
-  operatorMetres,
-  remainingPatterns,
-  progressPctForPattern,
-  remainingMetresForPattern,
-  dailyShiftNet,
-} from '../components/data.js'
-
-// ── pure helpers (work on any arrays, not global data.js arrays) ──────────────
-
-function toDate(d: any): Date | null {
-  if (d == null) return null
-  if (d instanceof Date) return isNaN(d.getTime()) ? null : d
-  const p = new Date(d)
-  return isNaN(p.getTime()) ? null : p
-}
-
-function sameDay(a: any, b: any): boolean {
-  const da = toDate(a); const db = toDate(b)
-  if (!da || !db) return false
-  return da.getFullYear() === db.getFullYear() &&
-    da.getMonth() === db.getMonth() &&
-    da.getDate() === db.getDate()
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d); r.setDate(r.getDate() + n); return r
-}
+import { toDate, sameDay, addDays } from '../lib/dateUtils'
 
 function isDone(p: any) {
   const s = String(p.status || '').toLowerCase()

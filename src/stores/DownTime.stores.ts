@@ -1,8 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
-
-let nextId = 80000
+import { createCrudStore } from '../lib/createCrudStore'
 
 function toDbRow(e: any) {
   return {
@@ -20,99 +17,5 @@ function toDbRow(e: any) {
 }
 
 export const useDownTimeStore = defineStore('downTime', () => {
-  const entries      = ref<any[]>([])
-  const loading      = ref(false)
-  const saving       = ref(false)
-  const error        = ref('')
-  const loadedWeekId = ref<number | null>(null)
-
-  async function loadByWeek(weekId: number) {
-    if (loadedWeekId.value === weekId) return
-    loading.value      = true
-    error.value        = ''
-    loadedWeekId.value = weekId
-    try {
-      if (isSupabaseConfigured()) {
-        const sb = getSupabase()!
-        const { data, error: err } = await sb
-          .from('tdl_downtime')
-          .select('*')
-          .eq('week_id', weekId)
-          .order('work_date', { ascending: false })
-          .order('id',        { ascending: false })
-        if (err) throw err
-        entries.value = data ?? []
-      } else {
-        await new Promise(r => setTimeout(r, 60))
-        entries.value = []
-      }
-    } catch (err: any) {
-      error.value = err?.message ?? String(err)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function addEntry(entry: any) {
-    saving.value = true
-    error.value  = ''
-    try {
-      if (isSupabaseConfigured()) {
-        const sb = getSupabase()!
-        const { data, error: err } = await sb
-          .from('tdl_downtime')
-          .insert(toDbRow(entry))
-          .select()
-          .single()
-        if (err) throw err
-        entries.value.unshift(data)
-      } else {
-        entries.value.unshift({ ...entry, id: nextId++ })
-      }
-    } catch (err: any) {
-      error.value = err?.message ?? String(err)
-    } finally {
-      saving.value = false
-    }
-  }
-
-  async function updateEntry(id: number, patch: any) {
-    const idx = entries.value.findIndex(e => e.id === id)
-    if (idx < 0) return
-    entries.value[idx] = { ...entries.value[idx], ...patch }
-    if (!isSupabaseConfigured()) return
-    saving.value = true
-    try {
-      const sb = getSupabase()!
-      const { error: err } = await sb
-        .from('tdl_downtime')
-        .update(toDbRow(entries.value[idx]))
-        .eq('id', id)
-      if (err) throw err
-    } catch (err: any) {
-      error.value = err?.message ?? String(err)
-    } finally {
-      saving.value = false
-    }
-  }
-
-  async function deleteEntry(id: number) {
-    entries.value = entries.value.filter(e => e.id !== id)
-    if (!isSupabaseConfigured()) return
-    try {
-      const sb = getSupabase()!
-      const { error: err } = await sb
-        .from('tdl_downtime')
-        .delete()
-        .eq('id', id)
-      if (err) throw err
-    } catch (err: any) {
-      error.value = err?.message ?? String(err)
-    }
-  }
-
-  return {
-    entries, loading, saving, error, loadedWeekId,
-    loadByWeek, addEntry, updateEntry, deleteEntry,
-  }
+  return createCrudStore({ table: 'tdl_downtime', toDbRow, startId: 80000 })
 })

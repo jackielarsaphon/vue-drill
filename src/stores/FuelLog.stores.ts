@@ -109,6 +109,7 @@ export const useFuelLogStore = defineStore('fuelLog', () => {
   async function updateEntry(id: number, patch: any) {
     const idx = fuelLog.value.findIndex(e => e.id === id)
     if (idx < 0) return
+    const previous = { ...fuelLog.value[idx] }
     fuelLog.value[idx] = { ...fuelLog.value[idx], ...patch }
     if (!isSupabaseConfigured()) return
     saving.value = true
@@ -120,6 +121,7 @@ export const useFuelLogStore = defineStore('fuelLog', () => {
         .eq('id', id)
       if (err) throw err
     } catch (err: any) {
+      fuelLog.value[idx] = previous
       error.value = err?.message ?? String(err)
     } finally {
       saving.value = false
@@ -127,6 +129,7 @@ export const useFuelLogStore = defineStore('fuelLog', () => {
   }
 
   async function deleteEntry(id: number) {
+    const snapshot = fuelLog.value
     fuelLog.value = fuelLog.value.filter(e => e.id !== id)
     if (!isSupabaseConfigured()) return
     try {
@@ -137,6 +140,7 @@ export const useFuelLogStore = defineStore('fuelLog', () => {
         .eq('id', id)
       if (err) throw err
     } catch (err: any) {
+      fuelLog.value = snapshot
       error.value = err?.message ?? String(err)
     }
   }

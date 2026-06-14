@@ -79,6 +79,7 @@ export const useDownTimeStore = defineStore('downTime', () => {
   async function updateEntry(id: number, patch: any) {
     const idx = entries.value.findIndex(e => e.id === id)
     if (idx < 0) return
+    const previous = { ...entries.value[idx] }
     entries.value[idx] = { ...entries.value[idx], ...patch }
     if (!isSupabaseConfigured()) return
     saving.value = true
@@ -90,6 +91,7 @@ export const useDownTimeStore = defineStore('downTime', () => {
         .eq('id', id)
       if (err) throw err
     } catch (err: any) {
+      entries.value[idx] = previous
       error.value = err?.message ?? String(err)
     } finally {
       saving.value = false
@@ -97,6 +99,7 @@ export const useDownTimeStore = defineStore('downTime', () => {
   }
 
   async function deleteEntry(id: number) {
+    const snapshot = entries.value
     entries.value = entries.value.filter(e => e.id !== id)
     if (!isSupabaseConfigured()) return
     try {
@@ -107,6 +110,7 @@ export const useDownTimeStore = defineStore('downTime', () => {
         .eq('id', id)
       if (err) throw err
     } catch (err: any) {
+      entries.value = snapshot
       error.value = err?.message ?? String(err)
     }
   }

@@ -106,15 +106,11 @@ export const usePatternsStore = defineStore('patterns', () => {
       if (isSupabaseConfigured()) {
         const sb = configuredClient()
         const rows = patterns.value.map(toDbRow)
-        console.log('[patterns.save] upserting', rows.length, 'rows, sample:', rows[0])
         const { data, error: err } = await sb
           .from('tdl_patterns')
           .upsert(rows, { onConflict: 'pattern_id,week_id' })
           .select()
-        if (err) {
-          console.error('[patterns.save] error:', err.code, err.message, err.details, err.hint)
-          throw err
-        }
+        if (err) throw err
         if (data) patterns.value = data
         return { error: null }
       } else {

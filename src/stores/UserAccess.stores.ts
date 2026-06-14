@@ -8,7 +8,6 @@ export interface Profile {
   display_name: string
   role: string
   job_title: string
-  password?: string
   created_at?: string
   updated_at?: string
 }
@@ -17,7 +16,6 @@ export interface CreateProfileInput {
   username: string
   name: string
   role: string
-  password?: string
 }
 
 export interface UpdateProfileInput {
@@ -25,7 +23,6 @@ export interface UpdateProfileInput {
   username?: string
   role?: string
   job_title?: string
-  password?: string
 }
 
 function configuredClient() {
@@ -41,7 +38,6 @@ function normalizeProfile(p: Partial<Profile>): Profile {
     display_name: String(p.display_name || ''),
     role:         String(p.role || 'viewer'),
     job_title:    String(p.job_title || ''),
-    password:     p.password ?? undefined,
     created_at:   p.created_at,
     updated_at:   p.updated_at,
   }
@@ -59,7 +55,7 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       const sb = configuredClient()
       const { data, error: err } = await sb
         .from('tdl_profiles')
-        .select('id, username, display_name, role, job_title, password, created_at, updated_at')
+        .select('id, username, display_name, role, job_title, created_at, updated_at')
         .order('created_at', { ascending: true })
 
       if (err) throw err
@@ -91,7 +87,6 @@ export const useUserAccessStore = defineStore('userAccess', () => {
           display_name: displayName,
           role,
           job_title:    '',
-          password:     data.password ?? null,
         })
       if (err) throw err
 
@@ -120,7 +115,6 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       }
       if (data.role !== undefined)      patch.role      = data.role
       if (data.job_title !== undefined) patch.job_title = data.job_title.trim()
-      if (data.password !== undefined)  patch.password  = data.password
 
       if (Object.keys(patch).length > 0) {
         const { error: err } = await sb.from('tdl_profiles').update(patch).eq('id', id)

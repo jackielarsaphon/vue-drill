@@ -1,6 +1,8 @@
 /* Mock data — single seed so the prototype is deterministic.
    Mirrors the schema in 2026-05-12-database-schema.sql. */
 
+import { addDays } from '../lib/dateUtils';
+
 const RIGS = [
   { rig_id: 'HE-001', contractor: 'Thaidrill' },
   { rig_id: 'HE-002', contractor: 'Thaidrill' },
@@ -42,7 +44,7 @@ const fmtDate = (d) => {
   return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`;
 };
 const fmtDateFull = fmtDate;
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+
 
 // Current active week — Sat 09 May → Fri 15 May 2026
 const WEEK = {

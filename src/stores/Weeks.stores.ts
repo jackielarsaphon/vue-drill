@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { configuredClient } from '../lib/supabaseHelpers'
 import { WEEKS } from '../components/data.js'
 
 export interface Week {
@@ -13,12 +14,6 @@ export interface Week {
 }
 
 type WeekPayload = Omit<Week, 'week_id'>
-
-function configuredClient() {
-  const sb = getSupabase()
-  if (!sb) throw new Error('Supabase not configured')
-  return sb
-}
 
 function mapRow(w: any): Week {
   return {

@@ -1,18 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { configuredClient } from '../lib/supabaseHelpers'
 import { RIGS } from '../components/data.js'
 
 export interface Rig {
   rig_id: string
   contractor: string
   is_active: boolean
-}
-
-function configuredClient() {
-  const sb = getSupabase()
-  if (!sb) throw new Error('Supabase not configured')
-  return sb
 }
 
 export const useRigsStore = defineStore('rigs', () => {

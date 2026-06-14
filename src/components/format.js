@@ -1,4 +1,5 @@
 import { h, defineComponent } from 'vue';
+import { addDays } from '../lib/dateUtils';
 
 export function pct(n) {
   if (n == null || Number.isNaN(n)) return '—';
@@ -10,11 +11,7 @@ export function fnum(n, digits = 0) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-export const addDays = (d, n) => {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-};
+export { addDays };
 
 export const fmtDisplayDate = (d, fallback = '—') => {
   if (!d) return fallback;

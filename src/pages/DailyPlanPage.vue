@@ -3,7 +3,7 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">Plan Daily</h1>
-        <p class="page-sub">กรอกแผนการเจาะรายวันของแต่ละ pattern ตามวันในสัปดาห์ (แยกอิสระจาก Plan m รวม)</p>
+        <p class="page-sub">Enter the daily drilling plan for each pattern by day of the week (independent of total Plan m).</p>
       </div>
       <button type="button" class="btn" data-variant="primary" :disabled="dailyPlanStore.saving" @click="save">
         <span class="ic"><component :is="I.save" /></span>
@@ -38,10 +38,10 @@
       </div>
 
       <div v-if="!weekDays.length" style="padding: 18px 16px; color: var(--ink-3); font-size: 12px">
-        สัปดาห์นี้ไม่มีช่วงวันที่ (week_start / week_end) ที่ใช้ได้
+        This week has no valid date range (week_start / week_end).
       </div>
       <div v-else-if="!pitNames.length" style="padding: 18px 16px; color: var(--ink-3); font-size: 12px">
-        ยังไม่มี pattern ในสัปดาห์นี้ — เพิ่มที่หน้า Data Entry ก่อน
+        No patterns in this week yet — add them in Data Entry first.
       </div>
 
       <div v-else class="daily-plan-wrap">
@@ -55,7 +55,7 @@
                 <span class="daily-plan-dow">{{ d.dow }}</span>
                 <span class="daily-plan-dm">{{ d.dm }}</span>
               </th>
-              <th class="r daily-plan-total-th">รวม/วัน</th>
+              <th class="r daily-plan-total-th">Daily total</th>
             </tr>
           </thead>
           <tbody>
@@ -77,7 +77,7 @@
             </tr>
             <tr class="daily-plan-foot-row">
               <td class="c" />
-              <td style="color: var(--ink-3); font-size: 12px">รวมทั้งบ่อ</td>
+              <td style="color: var(--ink-3); font-size: 12px">Pit total</td>
               <td class="num r dim">{{ commaNumber(pitPlanTotal) }}</td>
               <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-col">
                 <strong>{{ colTotal(d.iso) > 0 ? commaNumber(colTotal(d.iso)) : '—' }}</strong>
@@ -260,10 +260,10 @@ async function save() {
   const { error } = await dailyPlanStore.saveMany(rowsToSave, weekId);
   if (error) {
     const detail = [error.message, error.details, error.hint, error.code].filter(Boolean).join(' | ');
-    flash.value = `บันทึกไม่สำเร็จ: ${detail || String(error)}`;
+    flash.value = `Save failed: ${detail || String(error)}`;
     return;
   }
-  flash.value = 'บันทึกแผนรายวันแล้ว';
+  flash.value = 'Daily plan saved.';
   clearFlash(4000);
 }
 

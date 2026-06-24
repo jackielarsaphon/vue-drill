@@ -19,6 +19,12 @@ const routes: RouteRecordRaw[] = [
     meta: { roles: ['manager'] },
   },
   {
+    path: '/plan-daily',
+    name: 'PlanDaily',
+    component: () => import('../pages/DailyPlanPage.vue'),
+    meta: { roles: ['admin'] },
+  },
+  {
     path: '/daily-progress',
     name: 'DailyProgress',
     component: () => import('../components/StepDailyProgress.vue'),

@@ -48,6 +48,7 @@
             @create-week="createWeekFromHeader"
             @delete-week="deleteWeekFromHeader"
           />
+          <DailyPlanView v-if="view === 'plan-daily'" :week="week" />
           <DailyProgressView v-if="view === 'daily-progress'" :week="week" />
           <FuelDataView v-if="view === 'fuel-data'" :week="week" />
           <DownTimeView v-if="view === 'down-time'" :week="week" />
@@ -120,6 +121,7 @@ import TweaksPanel from './components/tweaks/TweaksPanel.vue';
 import TweakSection from './components/tweaks/TweakSection.vue';
 import TweakRadio from './components/tweaks/TweakRadio.vue';
 import DataEntryView from './pages/DataEntryPage.vue';
+import DailyPlanView from './pages/DailyPlanPage.vue';
 import PlanReviewView from './pages/PlanReviewPage.vue';
 import DashboardsView from './pages/DashboardPage.vue';
 import UserAccessView from './pages/UserAccessPage.vue';
@@ -140,6 +142,7 @@ interface WeekObj { week_id: number; week_start: Date | string; week_end: Date |
 
 const NAV = [
   { id: 'data-entry', label: 'Data Entry', roles: ['admin'], tag: 'admin' },
+  { id: 'plan-daily', label: 'Plan Daily', roles: ['admin'], tag: '' },
   { id: 'fuel-data', label: 'Fuel Data', roles: ['admin'], tag: '' },
   { id: 'down-time', label: 'Down Time', roles: ['admin'], tag: '' },
   { id: 'dashboards', label: 'Dashboards', roles: ['admin', 'manager'], tag: '' },
@@ -387,6 +390,7 @@ function toIso(d: Date): string {
 
 function viewTitle(v: string, dw: string) {
   if (v === 'data-entry') return 'Data Entry';
+  if (v === 'plan-daily') return 'Plan Daily';
   if (v === 'plan-review') return 'Plan Review';
   if (v === 'dashboards') return dw === 'ops' ? 'Operations Dashboard' : 'Management Dashboard';
   if (v === 'user-access') return 'User Access';

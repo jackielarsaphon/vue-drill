@@ -156,7 +156,7 @@
       No pits in the system. Add a new pit above to start entering blast patterns.
     </div>
 
-    <div v-else style="padding: 4px 0 0">
+    <div v-else class="patterns-table-wrap">
       <table class="tbl">
         <thead>
           <tr>
@@ -168,6 +168,10 @@
             <th class="r">Holes</th>
             <th class="r">Bit dia</th>
             <th class="r">Plan m</th>
+            <th v-for="d in weekDays" :key="d.iso" class="r daily-plan-th">
+              <span class="daily-plan-dow">{{ d.dow }}</span>
+              <span class="daily-plan-dm">{{ d.dm }}</span>
+            </th>
             <th class="r">Remain</th>
             <th class="r">Vol bcm</th>
             <th class="c">Blast date</th>
@@ -204,6 +208,9 @@
             <td class="num r plan-m-col">
               <input class="mono edit-cell plan-m-cell r" :disabled="locked && !p._unsaved" :value="commaNumber(p.plan_total_drilling_m)" @change="updateMetres(p, 'plan_total_drilling_m', $event.target.value)" />
             </td>
+            <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-col">
+              <input class="mono edit-cell daily-plan-cell r" :disabled="locked && !p._unsaved" :value="getDaily(p, d.iso)" placeholder="—" @change="setDaily(p, d.iso, $event.target.value)" />
+            </td>
             <td class="num r">{{ fnum(remainingMetres(p)) }}</td>
             <td class="num r">
               <input class="mono edit-cell r" :disabled="locked && !p._unsaved" :value="commaNumber(p.plan_blast_vol_bcm)" @change="updateNumber(p, 'plan_blast_vol_bcm', $event.target.value, 0)" />
@@ -225,7 +232,7 @@
           </tr>
           <tr style="background: var(--surface-2)">
             <td class="c"><span class="dim">+</span></td>
-            <td colspan="12" style="color: var(--ink-3)">
+            <td :colspan="11 + weekDays.length" style="color: var(--ink-3)">
               <button type="button" class="btn" data-variant="ghost" data-size="sm" @click="addPattern">
                 <span class="ic"><component :is="I.plus" /></span>Add pattern to
                 <span class="mono" style="margin-left: 4px">{{ pit }}</span>
@@ -262,6 +269,7 @@ import Card from '../Card.vue';
 import { PATTERN_RE, PATTERN_TYPES, extractPlanRowsFromPdf, extractPlanRowsFromExcel } from '../planImport.js';
 import { usePatternsStore } from '../../stores/Patterns.stores.ts';
 import { useDrillLogStore } from '../../stores/DrillLog.stores.ts';
+import { useDailyPlanStore } from '../../stores/DailyPlan.stores.ts';
 
 const TODAY = new Date();
 
@@ -287,6 +295,70 @@ const { patterns, pitNames } = storeToRefs(patternsStore);
 
 const drillLogStore = useDrillLogStore();
 const { drillLog } = storeToRefs(drillLogStore);
+
+const dailyPlanStore = useDailyPlanStore();
+const { dailyPlans } = storeToRefs(dailyPlanStore);
+
+// Map of `${pattern_id}__${YYYY-MM-DD}` -> planned metres for that single day.
+const dailyMap = ref({});
+
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function isoDay(value) {
+  if (!value) return '';
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '';
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  }
+  return String(value).slice(0, 10);
+}
+
+const weekDays = computed(() => {
+  const start = isoDay(props.week?.week_start);
+  const end = isoDay(props.week?.week_end);
+  if (!start || !end) return [];
+  const out = [];
+  const cur = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  let guard = 0;
+  while (cur.getTime() <= last.getTime() && guard < 31) {
+    out.push({
+      iso: `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`,
+      dow: DOW[cur.getDay()],
+      dm: `${cur.getDate()}/${cur.getMonth() + 1}`,
+    });
+    cur.setDate(cur.getDate() + 1);
+    guard += 1;
+  }
+  return out;
+});
+
+function dailyKey(patternId, iso) {
+  return `${patternId}__${iso}`;
+}
+
+function getDaily(p, iso) {
+  const v = dailyMap.value[dailyKey(p.pattern_id, iso)];
+  return Number(v) > 0 ? commaNumber(v) : '';
+}
+
+function setDaily(p, iso, value) {
+  if (props.locked && !p._unsaved) return;
+  const parsed = Number(String(value || '').replace(/,/g, ''));
+  dailyMap.value[dailyKey(p.pattern_id, iso)] = Number.isFinite(parsed) ? Math.max(0, +parsed.toFixed(1)) : 0;
+}
+
+function populateDailyMap() {
+  const m = {};
+  for (const r of dailyPlans.value) {
+    const iso = isoDay(r.plan_date);
+    if (!iso) continue;
+    m[dailyKey(r.pattern_id, iso)] = Number(r.plan_m) || 0;
+  }
+  dailyMap.value = m;
+}
+
+watch(dailyPlans, populateDailyMap, { immediate: true });
 
 const listRevision = ref(0);
 const pit = ref('');
@@ -353,6 +425,7 @@ watch(
     if (weekId != null && !Number.isNaN(id)) {
       await patternsStore.loadByWeek(id);
       await drillLogStore.loadByWeek(id);
+      await dailyPlanStore.loadByWeek(id);
     }
   },
   { immediate: true },
@@ -750,6 +823,26 @@ function deletePattern(row) {
   clearFlash(4000);
 }
 
+async function saveDailyPlans() {
+  if (!weekDays.value.length) return { error: null };
+  const weekId = props.week.week_id;
+  const validIds = new Set(
+    patterns.value.filter((p) => Number(p.week_id) === Number(weekId)).map((p) => p.pattern_id),
+  );
+  const validDays = new Set(weekDays.value.map((d) => d.iso));
+  const rowsToSave = [];
+  for (const key of Object.keys(dailyMap.value)) {
+    const sep = key.lastIndexOf('__');
+    if (sep < 0) continue;
+    const patternId = key.slice(0, sep);
+    const iso = key.slice(sep + 2);
+    if (!validIds.has(patternId) || !validDays.has(iso)) continue;
+    rowsToSave.push({ pattern_id: patternId, week_id: weekId, plan_date: iso, plan_m: Number(dailyMap.value[key]) || 0 });
+  }
+  if (!rowsToSave.length) return { error: null };
+  return dailyPlanStore.saveMany(rowsToSave, weekId);
+}
+
 async function saveAndNext() {
   if (props.locked && !hasUnsavedNew.value) { emit('next'); return; }
   saving.value = true;
@@ -759,6 +852,12 @@ async function saveAndNext() {
   if (err) {
     const detail = [err.message, err.details, err.hint, err.code].filter(Boolean).join(' | ');
     flash.value = `Save failed: ${detail || String(err)}`;
+    return;
+  }
+  const { error: dpErr } = await saveDailyPlans();
+  if (dpErr) {
+    const detail = [dpErr.message, dpErr.details, dpErr.hint, dpErr.code].filter(Boolean).join(' | ');
+    flash.value = `Daily plan save failed: ${detail || String(dpErr)}`;
     return;
   }
   emit('plan-saved');
@@ -954,6 +1053,37 @@ onUnmounted(() => clearTimeout(flashTimer));
   color: var(--ink-2);
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+.patterns-table-wrap {
+  padding: 4px 0 0;
+  overflow-x: auto;
+}
+
+.daily-plan-th {
+  white-space: nowrap;
+  border-left: 1px solid var(--line);
+}
+
+.daily-plan-dow {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.daily-plan-dm {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+.daily-plan-col {
+  border-left: 1px solid var(--line);
+}
+
+.daily-plan-cell {
+  width: 58px;
 }
 
 </style>

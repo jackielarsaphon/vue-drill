@@ -51,7 +51,7 @@
           <DailyProgressView v-if="view === 'daily-progress'" :week="week" />
           <FuelDataView v-if="view === 'fuel-data'" :week="week" />
           <DownTimeView v-if="view === 'down-time'" :week="week" />
-          <DownTimeReportView v-if="view === 'dt-report'" />
+          <DownTimeReportView v-if="view === 'dt-report'" :week="week" />
           <ReasonCodeView v-if="view === 'reason-codes'" />
           <PlanReviewView v-if="view === 'plan-review'" :week="week" />
           <DashboardsView v-if="view === 'dashboards'" v-model:which="dashWhich" :week="week" />

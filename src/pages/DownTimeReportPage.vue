@@ -56,6 +56,11 @@
       </div>
     </div>
 
+    <!-- Reason Chart -->
+    <Card v-if="rStore.entries.length" title="กราฟแท่งตาม Reason">
+      <div ref="reasonChartEl" class="reason-chart" />
+    </Card>
+
     <!-- Detail -->
     <Card v-if="rStore.entries.length" title="รายละเอียดทั้งหมด">
       <div class="tbl-wrap">
@@ -105,7 +110,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import * as echarts from 'echarts'
 import { fnum } from '../components/format.js'
 import { useDownTimeReportStore } from '../stores/DownTimeReport.stores.ts'
 import { useReasonCodeStore }     from '../stores/ReasonCode.stores.ts'
@@ -114,27 +120,45 @@ import Field from '../components/Field.vue'
 
 const rStore  = useDownTimeReportStore()
 const rcStore = useReasonCodeStore()
+const reasonChartEl = ref(null)
+let reasonChart = null
 
-function todayIso() {
-  const d = new Date()
+const props = defineProps({
+  week: { type: Object, required: true },
+})
+
+function toIso(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value.slice(0, 10)
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
-function monthAgoIso() {
-  const d = new Date()
-  d.setMonth(d.getMonth() - 1)
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-}
 
-const from        = ref(monthAgoIso())
-const to          = ref(todayIso())
+const weekStart = computed(() => toIso(props.week?.week_start))
+const weekEnd   = computed(() => toIso(props.week?.week_end))
+
+const from        = ref('')
+const to          = ref('')
 const filterRig    = ref('')
 const filterReason = ref('')
 
 async function loadReport() {
+  if (!from.value || !to.value) return
   filterRig.value    = ''
   filterReason.value = ''
   await rStore.load(from.value, to.value)
 }
+
+watch(
+  () => [props.week?.week_id, weekStart.value, weekEnd.value],
+  () => {
+    from.value = weekStart.value
+    to.value   = weekEnd.value
+    loadReport()
+  },
+  { immediate: true },
+)
 
 const uniqueRigs    = computed(() => [...new Set(rStore.entries.map(e => e.air_code).filter(Boolean))].sort())
 const uniqueReasons = computed(() => [...new Set(rStore.entries.map(e => e.reason_code).filter(Boolean))].sort())
@@ -150,7 +174,7 @@ const filteredTotalHr = computed(() => filteredEntries.value.reduce((s, e) => s 
 
 const byReason = computed(() => {
   const map = new Map()
-  for (const e of rStore.entries) {
+  for (const e of filteredEntries.value) {
     const key = e.reason_code || '—'
     if (!map.has(key)) {
       const rc = rcStore.codes.find(c => c.code === key)
@@ -175,6 +199,75 @@ const byRig = computed(() => {
   return [...map.values()].sort((a, b) => b.total - a.total)
 })
 
+const reasonChartOption = computed(() => {
+  const rows = byReason.value
+  const labels = rows.map(r => r.code)
+  const values = rows.map(r => Number(r.total || 0))
+  const max = Math.max(1, ...values)
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      textStyle: { fontSize: 11 },
+      formatter(params) {
+        const p = params[0]
+        const row = rows[p?.dataIndex ?? -1]
+        const desc = row?.description ? `<div style="color:#777;margin-top:2px">${row.description}</div>` : ''
+        return `<div style="font-weight:700;margin-bottom:4px">${p?.axisValue ?? ''}</div>` +
+          `<div>${p?.marker ?? ''}Down Time: <strong>${Number(p?.value || 0).toFixed(2)} hrs</strong></div>` +
+          `<div>Entries: <strong>${row?.count ?? 0}</strong></div>` + desc
+      },
+    },
+    grid: { top: 24, right: 24, bottom: labels.length > 8 ? 72 : 48, left: 56, containLabel: false },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLine: { lineStyle: { color: '#ddd' } },
+      axisTick: { show: false },
+      axisLabel: { fontSize: 10, color: '#666', interval: 0, rotate: labels.length > 8 ? 35 : 0 },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'hrs',
+      nameTextStyle: { fontSize: 10, color: '#999' },
+      max: Math.ceil(max * 1.2),
+      axisLabel: { fontSize: 10, color: '#666' },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: '#f0f0f0' } },
+    },
+    series: [{
+      name: 'Down Time',
+      type: 'bar',
+      data: values,
+      barMaxWidth: 46,
+      itemStyle: { color: '#2541B2', borderRadius: [4, 4, 0, 0] },
+      label: {
+        show: true,
+        position: 'top',
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#333',
+        formatter: ({ value }) => Number(value || 0) > 0 ? Number(value).toFixed(1) : '',
+      },
+    }],
+  }
+})
+
+async function renderReasonChart() {
+  await nextTick()
+  if (!reasonChartEl.value || !byReason.value.length) return
+  if (!reasonChart) reasonChart = echarts.init(reasonChartEl.value)
+  reasonChart.setOption(reasonChartOption.value, true)
+}
+
+function resizeReasonChart() {
+  reasonChart?.resize()
+}
+
 function fmtDate(value) {
   if (!value) return '—'
   const d = new Date(value)
@@ -184,8 +277,17 @@ function fmtDate(value) {
 
 onMounted(() => {
   rcStore.loadAll()
-  loadReport()
+  renderReasonChart()
+  window.addEventListener('resize', resizeReasonChart)
 })
+
+onUnmounted(() => {
+  reasonChart?.dispose()
+  reasonChart = null
+  window.removeEventListener('resize', resizeReasonChart)
+})
+
+watch(reasonChartOption, renderReasonChart)
 </script>
 
 <style scoped>
@@ -229,6 +331,11 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+}
+
+.reason-chart {
+  width: 100%;
+  height: 320px;
 }
 
 .tbl-wrap { overflow-x: auto; }

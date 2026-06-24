@@ -27,7 +27,7 @@
     <Management    v-if="which === 'mgmt'" key="mgmt" :week="week" />
     <Operations    v-else-if="which === 'ops'"  key="ops"  :week="week" />
     <FuelDashboard v-else-if="which === 'fuel'" key="fuel" :week="week" />
-    <DownTimeReport v-else-if="which === 'dt'" key="dt" />
+    <DownTimeReport v-else-if="which === 'dt'" key="dt" :week="week" />
   </div>
 </template>
 

@@ -75,6 +75,32 @@
         </button>
       </div>
     </Card>
+
+    <template v-if="weekDays.length">
+      <Card :pad="false" style="margin-top: 12px">
+        <PlanVsActualChart
+          title="Drill Metre Plan vs Actual"
+          y-name="metres"
+          :labels="chartLabels"
+          :plan="planDrill"
+          :actual="actualDrillByDay"
+          bar-color="#e8533a"
+          plan-color="#2f4ad0"
+        />
+      </Card>
+
+      <Card :pad="false" style="margin-top: 12px">
+        <PlanVsActualChart
+          title="Blast Volume Plan vs Actual (bcm)"
+          y-name="BCM"
+          :labels="chartLabels"
+          :plan="planBlast"
+          :actual="actualBlastByDay"
+          bar-color="#f08a24"
+          plan-color="#2f4ad0"
+        />
+      </Card>
+    </template>
   </div>
 </template>
 
@@ -83,7 +109,10 @@ import { computed, ref, watch, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { I } from '../components/format.js';
 import Card from '../components/Card.vue';
+import PlanVsActualChart from '../components/dashboard/PlanVsActualChart.vue';
 import { useDailyTargetsStore } from '../stores/DailyTargets.stores.ts';
+import { useDrillLogStore } from '../stores/DrillLog.stores.ts';
+import { usePatternsStore } from '../stores/Patterns.stores.ts';
 
 const props = defineProps({
   week: { type: Object, required: true },
@@ -91,6 +120,12 @@ const props = defineProps({
 
 const dailyTargetsStore = useDailyTargetsStore();
 const { targets } = storeToRefs(dailyTargetsStore);
+
+const drillLogStore = useDrillLogStore();
+const { drillLog } = storeToRefs(drillLogStore);
+
+const patternsStore = usePatternsStore();
+const { patterns } = storeToRefs(patternsStore);
 
 const flash = ref('');
 
@@ -153,6 +188,39 @@ function rowTotal(metric) {
     .toFixed(1);
 }
 
+// ── chart data ────────────────────────────────────────────────────────────
+const chartLabels = computed(() => weekDays.value.map((d) => `${d.dow}\n${d.dm}`));
+
+const planDrill = computed(() =>
+  weekDays.value.map((d) => Number(valueMap.value[valueKey('drilling_m', d.iso)]) || 0),
+);
+const planBlast = computed(() =>
+  weekDays.value.map((d) => Number(valueMap.value[valueKey('blast_vol_bcm', d.iso)]) || 0),
+);
+
+const actualDrillByDay = computed(() => {
+  const map = {};
+  for (const e of drillLog.value) {
+    if (Number(e.week_id) !== Number(props.week?.week_id)) continue;
+    const iso = isoDay(e.work_date);
+    if (!iso) continue;
+    map[iso] = (map[iso] || 0) + Number(e.total_drilling_m || 0);
+  }
+  return weekDays.value.map((d) => +(map[d.iso] || 0).toFixed(1));
+});
+
+const actualBlastByDay = computed(() => {
+  const map = {};
+  for (const p of patterns.value) {
+    if (Number(p.week_id) !== Number(props.week?.week_id)) continue;
+    if (!p.blast_td_updated) continue;
+    const iso = isoDay(p.actual_blast_date);
+    if (!iso) continue;
+    map[iso] = (map[iso] || 0) + Number(p.actual_blast_vol_bcm || 0);
+  }
+  return weekDays.value.map((d) => +(map[d.iso] || 0).toFixed(1));
+});
+
 function populateValueMap() {
   const m = {};
   for (const r of targets.value) {
@@ -171,7 +239,11 @@ watch(
   async (weekId) => {
     const id = Number(weekId);
     if (weekId == null || Number.isNaN(id)) return;
-    await dailyTargetsStore.loadByWeek(id);
+    await Promise.all([
+      dailyTargetsStore.loadByWeek(id),
+      drillLogStore.loadByWeek(id),
+      patternsStore.loadByWeek(id),
+    ]);
   },
   { immediate: true },
 );

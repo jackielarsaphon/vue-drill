@@ -3,18 +3,18 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">Plan Daily</h1>
-        <p class="page-sub">Enter the daily drilling plan for each pattern by day of the week (independent of total Plan m).</p>
+        <p class="page-sub">Enter the planned daily totals for the week — independent of the per-pattern plan.</p>
       </div>
-      <button type="button" class="btn" data-variant="primary" :disabled="dailyPlanStore.saving" @click="save">
+      <button type="button" class="btn" data-variant="primary" :disabled="dailyTargetsStore.saving" @click="save">
         <span class="ic"><component :is="I.save" /></span>
-        {{ dailyPlanStore.saving ? 'Saving…' : 'Save daily plan' }}
+        {{ dailyTargetsStore.saving ? 'Saving…' : 'Save daily plan' }}
       </button>
     </div>
 
     <Card
       :pad="false"
       title="Daily plan"
-      :sub="`Week ${week?.week_id ?? '-'} · ${weekDays.length} days · ${pitNames.length} pits`"
+      :sub="`Week ${week?.week_id ?? '-'} · ${weekDays.length} days`"
     >
       <p
         v-if="flash"
@@ -24,73 +24,54 @@
         {{ flash }}
       </p>
 
-      <div class="pit-tabs" style="border-top: 0">
-        <button
-          v-for="p in pitNames"
-          :key="p"
-          type="button"
-          class="pit-tab"
-          :data-active="p === pit ? 'true' : undefined"
-          @click="pit = p"
-        >
-          {{ p }} <span class="count">{{ (byPit[p] || []).length }}</span>
-        </button>
-      </div>
-
       <div v-if="!weekDays.length" style="padding: 18px 16px; color: var(--ink-3); font-size: 12px">
         This week has no valid date range (week_start / week_end).
-      </div>
-      <div v-else-if="!pitNames.length" style="padding: 18px 16px; color: var(--ink-3); font-size: 12px">
-        No patterns in this week yet — add them in Data Entry first.
       </div>
 
       <div v-else class="daily-plan-wrap">
         <table class="tbl">
           <thead>
             <tr>
-              <th style="width: 30px" class="c">#</th>
-              <th>Pattern ID</th>
-              <th class="r">Plan m</th>
+              <th class="daily-plan-metric-th">Metric</th>
               <th v-for="d in weekDays" :key="d.iso" class="r daily-plan-th">
                 <span class="daily-plan-dow">{{ d.dow }}</span>
                 <span class="daily-plan-dm">{{ d.dm }}</span>
               </th>
-              <th class="r daily-plan-total-th">Daily total</th>
+              <th class="r daily-plan-total-th">Total</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in rows" :key="p.pattern_id">
-              <td class="c"><span class="mono dim">{{ p.pit_priority === 0 ? 'C' : p.pit_priority }}</span></td>
-              <td><span class="mono" style="font-size: 12px">{{ p.pattern_id }}</span></td>
-              <td class="num r dim">{{ commaNumber(p.plan_total_drilling_m) }}</td>
+            <tr>
+              <td class="daily-plan-metric">Total drilling metres per day</td>
               <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-col">
                 <input
                   class="mono edit-cell daily-plan-cell r"
-                  :value="getDaily(p, d.iso)"
+                  :value="getValue('drilling_m', d.iso)"
                   placeholder="—"
-                  @change="setDaily(p, d.iso, $event.target.value)"
+                  @change="setValue('drilling_m', d.iso, $event.target.value)"
                 />
               </td>
-              <td class="num r daily-plan-total-col">
-                <strong>{{ rowTotal(p) > 0 ? commaNumber(rowTotal(p)) : '—' }}</strong>
-              </td>
+              <td class="num r daily-plan-total-col"><strong>{{ rowTotal('drilling_m') > 0 ? commaNumber(rowTotal('drilling_m')) : '—' }}</strong></td>
             </tr>
-            <tr class="daily-plan-foot-row">
-              <td class="c" />
-              <td style="color: var(--ink-3); font-size: 12px">Pit total</td>
-              <td class="num r dim">{{ commaNumber(pitPlanTotal) }}</td>
+            <tr>
+              <td class="daily-plan-metric">Total blast volumes per day (bcm)</td>
               <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-col">
-                <strong>{{ colTotal(d.iso) > 0 ? commaNumber(colTotal(d.iso)) : '—' }}</strong>
+                <input
+                  class="mono edit-cell daily-plan-cell r"
+                  :value="getValue('blast_vol_bcm', d.iso)"
+                  placeholder="—"
+                  @change="setValue('blast_vol_bcm', d.iso, $event.target.value)"
+                />
               </td>
-              <td class="num r daily-plan-total-col"><strong>{{ pitDailyTotal > 0 ? commaNumber(pitDailyTotal) : '—' }}</strong></td>
+              <td class="num r daily-plan-total-col"><strong>{{ rowTotal('blast_vol_bcm') > 0 ? commaNumber(rowTotal('blast_vol_bcm')) : '—' }}</strong></td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div style="padding: 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--line)">
-        <button type="button" class="btn" data-variant="primary" :disabled="dailyPlanStore.saving" @click="save">
-          {{ dailyPlanStore.saving ? 'Saving…' : 'Save daily plan' }}
+        <button type="button" class="btn" data-variant="primary" :disabled="dailyTargetsStore.saving" @click="save">
+          {{ dailyTargetsStore.saving ? 'Saving…' : 'Save daily plan' }}
         </button>
       </div>
     </Card>
@@ -102,24 +83,19 @@ import { computed, ref, watch, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { I } from '../components/format.js';
 import Card from '../components/Card.vue';
-import { usePatternsStore } from '../stores/Patterns.stores.ts';
-import { useDailyPlanStore } from '../stores/DailyPlan.stores.ts';
+import { useDailyTargetsStore } from '../stores/DailyTargets.stores.ts';
 
 const props = defineProps({
   week: { type: Object, required: true },
 });
 
-const patternsStore = usePatternsStore();
-const { patterns, pitNames } = storeToRefs(patternsStore);
+const dailyTargetsStore = useDailyTargetsStore();
+const { targets } = storeToRefs(dailyTargetsStore);
 
-const dailyPlanStore = useDailyPlanStore();
-const { dailyPlans } = storeToRefs(dailyPlanStore);
-
-const pit = ref('');
 const flash = ref('');
 
-// Map of `${pattern_id}__${YYYY-MM-DD}` -> planned metres for that single day.
-const dailyMap = ref({});
+// Map of `${metric}__${YYYY-MM-DD}` -> planned value for that single day.
+const valueMap = ref({});
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -152,93 +128,50 @@ const weekDays = computed(() => {
   return out;
 });
 
-const weekPatterns = computed(() =>
-  patterns.value
-    .filter((p) => Number(p.week_id) === Number(props.week?.week_id))
-    .sort((a, b) => a.pit_name.localeCompare(b.pit_name) || Number(a.pit_priority || 0) - Number(b.pit_priority || 0) || a.pattern_id.localeCompare(b.pattern_id)),
-);
-
-const byPit = computed(() => {
-  const out = {};
-  for (const p of weekPatterns.value) {
-    if (!out[p.pit_name]) out[p.pit_name] = [];
-    out[p.pit_name].push(p);
-  }
-  return out;
-});
-
-const rows = computed(() => byPit.value[pit.value] || []);
-
 function commaNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed.toLocaleString('en-US') : '';
 }
 
-function dailyKey(patternId, iso) {
-  return `${patternId}__${iso}`;
+function valueKey(metric, iso) {
+  return `${metric}__${iso}`;
 }
 
-function getDaily(p, iso) {
-  const v = dailyMap.value[dailyKey(p.pattern_id, iso)];
+function getValue(metric, iso) {
+  const v = valueMap.value[valueKey(metric, iso)];
   return Number(v) > 0 ? commaNumber(v) : '';
 }
 
-function setDaily(p, iso, value) {
+function setValue(metric, iso, value) {
   const parsed = Number(String(value || '').replace(/,/g, ''));
-  dailyMap.value[dailyKey(p.pattern_id, iso)] = Number.isFinite(parsed) ? Math.max(0, +parsed.toFixed(1)) : 0;
+  valueMap.value[valueKey(metric, iso)] = Number.isFinite(parsed) ? Math.max(0, +parsed.toFixed(1)) : 0;
 }
 
-function rowTotal(p) {
+function rowTotal(metric) {
   return +weekDays.value
-    .reduce((sum, d) => sum + (Number(dailyMap.value[dailyKey(p.pattern_id, d.iso)]) || 0), 0)
+    .reduce((sum, d) => sum + (Number(valueMap.value[valueKey(metric, d.iso)]) || 0), 0)
     .toFixed(1);
 }
 
-function colTotal(iso) {
-  return +rows.value
-    .reduce((sum, p) => sum + (Number(dailyMap.value[dailyKey(p.pattern_id, iso)]) || 0), 0)
-    .toFixed(1);
-}
-
-const pitPlanTotal = computed(() =>
-  +rows.value.reduce((sum, p) => sum + Number(p.plan_total_drilling_m || 0), 0).toFixed(1),
-);
-
-const pitDailyTotal = computed(() =>
-  +rows.value.reduce((sum, p) => sum + rowTotal(p), 0).toFixed(1),
-);
-
-function populateDailyMap() {
+function populateValueMap() {
   const m = {};
-  for (const r of dailyPlans.value) {
+  for (const r of targets.value) {
     const iso = isoDay(r.plan_date);
     if (!iso) continue;
-    m[dailyKey(r.pattern_id, iso)] = Number(r.plan_m) || 0;
+    m[valueKey('drilling_m', iso)] = Number(r.drilling_m) || 0;
+    m[valueKey('blast_vol_bcm', iso)] = Number(r.blast_vol_bcm) || 0;
   }
-  dailyMap.value = m;
+  valueMap.value = m;
 }
 
-watch(dailyPlans, populateDailyMap, { immediate: true });
-
-watch(
-  pitNames,
-  (names) => {
-    if (!names?.length) {
-      pit.value = '';
-      return;
-    }
-    if (!pit.value || !names.includes(pit.value)) pit.value = names[0];
-  },
-  { immediate: true },
-);
+watch(targets, populateValueMap, { immediate: true });
 
 watch(
   () => props.week?.week_id,
   async (weekId) => {
     const id = Number(weekId);
     if (weekId == null || Number.isNaN(id)) return;
-    await patternsStore.loadByWeek(id);
-    await dailyPlanStore.loadByWeek(id);
+    await dailyTargetsStore.loadByWeek(id);
   },
   { immediate: true },
 );
@@ -246,18 +179,13 @@ watch(
 async function save() {
   const weekId = props.week?.week_id;
   if (weekId == null) return;
-  const validIds = new Set(weekPatterns.value.map((p) => p.pattern_id));
-  const validDays = new Set(weekDays.value.map((d) => d.iso));
-  const rowsToSave = [];
-  for (const key of Object.keys(dailyMap.value)) {
-    const sep = key.lastIndexOf('__');
-    if (sep < 0) continue;
-    const patternId = key.slice(0, sep);
-    const iso = key.slice(sep + 2);
-    if (!validIds.has(patternId) || !validDays.has(iso)) continue;
-    rowsToSave.push({ pattern_id: patternId, week_id: weekId, plan_date: iso, plan_m: Number(dailyMap.value[key]) || 0 });
-  }
-  const { error } = await dailyPlanStore.saveMany(rowsToSave, weekId);
+  const rowsToSave = weekDays.value.map((d) => ({
+    week_id: weekId,
+    plan_date: d.iso,
+    drilling_m: Number(valueMap.value[valueKey('drilling_m', d.iso)]) || 0,
+    blast_vol_bcm: Number(valueMap.value[valueKey('blast_vol_bcm', d.iso)]) || 0,
+  }));
+  const { error } = await dailyTargetsStore.saveMany(rowsToSave, weekId);
   if (error) {
     const detail = [error.message, error.details, error.hint, error.code].filter(Boolean).join(' | ');
     flash.value = `Save failed: ${detail || String(error)}`;
@@ -308,6 +236,16 @@ onUnmounted(() => clearTimeout(flashTimer));
   background: var(--surface);
 }
 
+.daily-plan-metric-th {
+  min-width: 230px;
+}
+
+.daily-plan-metric {
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink);
+}
+
 .daily-plan-th {
   white-space: nowrap;
   border-left: 1px solid var(--line);
@@ -331,17 +269,12 @@ onUnmounted(() => clearTimeout(flashTimer));
 }
 
 .daily-plan-cell {
-  width: 64px;
+  width: 72px;
 }
 
 .daily-plan-total-th,
 .daily-plan-total-col {
   border-left: 2px solid var(--line);
   white-space: nowrap;
-}
-
-.daily-plan-foot-row td {
-  border-top: 2px solid var(--line);
-  background: var(--surface-2);
 }
 </style>

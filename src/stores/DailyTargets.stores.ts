@@ -4,8 +4,8 @@ import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
 import { toIsoDate, cloneRow } from '../components/demo.js'
 
 // In-memory store used when Supabase is not configured (demo mode).
-const DEMO_DAILY_PLAN: any[] = []
-let nextLocalId = 70000
+const DEMO_DAILY_TARGETS: any[] = []
+let nextLocalId = 80000
 
 function configuredClient() {
   const sb = getSupabase()
@@ -20,15 +20,19 @@ function ensureLocalId(row: any) {
 
 function toDbRow(r: any) {
   return {
-    pattern_id: r.pattern_id,
-    week_id:    Number(r.week_id),
-    plan_date:  toIsoDate(r.plan_date),
-    plan_m:     Number(r.plan_m) || 0,
+    week_id:       Number(r.week_id),
+    plan_date:     toIsoDate(r.plan_date),
+    drilling_m:    Number(r.drilling_m) || 0,
+    blast_vol_bcm: Number(r.blast_vol_bcm) || 0,
   }
 }
 
-export const useDailyPlanStore = defineStore('dailyPlan', () => {
-  const dailyPlans   = ref<any[]>([])
+function isEmpty(r: any) {
+  return !(Number(r.drilling_m) > 0) && !(Number(r.blast_vol_bcm) > 0)
+}
+
+export const useDailyTargetsStore = defineStore('dailyTargets', () => {
+  const targets      = ref<any[]>([])
   const loading      = ref(false)
   const saving       = ref(false)
   const error        = ref('')
@@ -44,15 +48,15 @@ export const useDailyPlanStore = defineStore('dailyPlan', () => {
       if (isSupabaseConfigured()) {
         const sb = configuredClient()
         const { data, error: err } = await sb
-          .from('tdl_pattern_daily_plan')
+          .from('tdl_daily_targets')
           .select('*')
           .eq('week_id', weekId)
         if (err) throw err
-        dailyPlans.value = data ?? []
+        targets.value = data ?? []
       } else {
         await new Promise((r) => setTimeout(r, 40))
         const id = Number(weekId)
-        dailyPlans.value = DEMO_DAILY_PLAN
+        targets.value = DEMO_DAILY_TARGETS
           .filter((r) => Number(r.week_id) === id)
           .map((r) => cloneRow(r))
       }
@@ -63,11 +67,11 @@ export const useDailyPlanStore = defineStore('dailyPlan', () => {
     }
   }
 
-  // ── saveMany (bulk upsert; rows with plan_m <= 0 are removed) ───────────────
+  // ── saveMany (upsert rows with values; delete rows that became empty) ───────
   async function saveMany(rows: any[], weekId: number) {
     const id = Number(weekId)
-    const toUpsert = rows.filter((r) => Number(r.plan_m) > 0)
-    const toDelete = rows.filter((r) => !(Number(r.plan_m) > 0))
+    const toUpsert = rows.filter((r) => !isEmpty(r))
+    const toDelete = rows.filter((r) => isEmpty(r))
     saving.value = true
     error.value = ''
     try {
@@ -76,21 +80,19 @@ export const useDailyPlanStore = defineStore('dailyPlan', () => {
 
         if (toUpsert.length) {
           const { error: err } = await sb
-            .from('tdl_pattern_daily_plan')
-            .upsert(toUpsert.map(toDbRow), { onConflict: 'pattern_id,week_id,plan_date' })
+            .from('tdl_daily_targets')
+            .upsert(toUpsert.map(toDbRow), { onConflict: 'week_id,plan_date' })
           if (err) throw err
         }
 
-        // Clear out any zeroed-out cells that previously held a value.
         for (const r of toDelete) {
-          const isoDate = toIsoDate(r.plan_date)
-          if (!isoDate) continue
+          const iso = toIsoDate(r.plan_date)
+          if (!iso) continue
           const { error: err } = await sb
-            .from('tdl_pattern_daily_plan')
+            .from('tdl_daily_targets')
             .delete()
-            .eq('pattern_id', r.pattern_id)
             .eq('week_id', id)
-            .eq('plan_date', isoDate)
+            .eq('plan_date', iso)
           if (err) throw err
         }
 
@@ -99,20 +101,20 @@ export const useDailyPlanStore = defineStore('dailyPlan', () => {
       } else {
         await new Promise((r) => setTimeout(r, 40))
         for (const r of toUpsert) {
-          const isoDate = toIsoDate(r.plan_date)
-          const mi = DEMO_DAILY_PLAN.findIndex(
-            (x) => x.pattern_id === r.pattern_id && Number(x.week_id) === id && toIsoDate(x.plan_date) === isoDate,
+          const iso = toIsoDate(r.plan_date)
+          const mi = DEMO_DAILY_TARGETS.findIndex(
+            (x) => Number(x.week_id) === id && toIsoDate(x.plan_date) === iso,
           )
-          const row = ensureLocalId({ pattern_id: r.pattern_id, week_id: id, plan_date: isoDate, plan_m: Number(r.plan_m) || 0 })
-          if (mi >= 0) DEMO_DAILY_PLAN[mi] = { ...DEMO_DAILY_PLAN[mi], ...row }
-          else DEMO_DAILY_PLAN.push(row)
+          const row = ensureLocalId({ week_id: id, plan_date: iso, drilling_m: Number(r.drilling_m) || 0, blast_vol_bcm: Number(r.blast_vol_bcm) || 0 })
+          if (mi >= 0) DEMO_DAILY_TARGETS[mi] = { ...DEMO_DAILY_TARGETS[mi], ...row }
+          else DEMO_DAILY_TARGETS.push(row)
         }
         for (const r of toDelete) {
-          const isoDate = toIsoDate(r.plan_date)
-          const mi = DEMO_DAILY_PLAN.findIndex(
-            (x) => x.pattern_id === r.pattern_id && Number(x.week_id) === id && toIsoDate(x.plan_date) === isoDate,
+          const iso = toIsoDate(r.plan_date)
+          const mi = DEMO_DAILY_TARGETS.findIndex(
+            (x) => Number(x.week_id) === id && toIsoDate(x.plan_date) === iso,
           )
-          if (mi >= 0) DEMO_DAILY_PLAN.splice(mi, 1)
+          if (mi >= 0) DEMO_DAILY_TARGETS.splice(mi, 1)
         }
         await loadByWeek(id)
         return { error: null }
@@ -125,5 +127,5 @@ export const useDailyPlanStore = defineStore('dailyPlan', () => {
     }
   }
 
-  return { dailyPlans, loading, saving, error, loadedWeekId, loadByWeek, saveMany }
+  return { targets, loading, saving, error, loadedWeekId, loadByWeek, saveMany }
 })

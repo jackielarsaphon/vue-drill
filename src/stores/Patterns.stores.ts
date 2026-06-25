@@ -59,6 +59,9 @@ export const usePatternsStore = defineStore('patterns', () => {
   const saving   = ref(false)
   const error    = ref('')
   const loadedWeekId = ref<number | null>(null)
+  const monthlyPatterns = ref<any[]>([])
+  const monthlyLoading  = ref(false)
+  const loadedMonth     = ref('')
 
   const pitNames = computed(() => [...new Set(patterns.value.map((p: any) => p.pit_name))].sort())
 
@@ -95,6 +98,77 @@ export const usePatternsStore = defineStore('patterns', () => {
       error.value = err?.message ?? String(err)
     } finally {
       loading.value = false
+    }
+  }
+
+  // ── loadByMonth (by actual_blast_date range; for monthly Plan vs Actual) ───
+  async function loadByMonth(year: number, month: number) {
+    monthlyLoading.value = true
+    error.value = ''
+    loadedMonth.value = `${year}-${String(month).padStart(2, '0')}`
+    try {
+      const mm      = String(month).padStart(2, '0')
+      const startDt = `${year}-${mm}-01`
+      const lastDay = new Date(year, month, 0).getDate()
+      const endDt   = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`
+      if (isSupabaseConfigured()) {
+        const sb = configuredClient()
+        const { data, error: err } = await sb
+          .from('tdl_patterns')
+          .select('actual_blast_date, actual_blast_vol_bcm, blast_td_updated')
+          .gte('actual_blast_date', startDt)
+          .lte('actual_blast_date', endDt)
+        if (err) throw err
+        monthlyPatterns.value = data ?? []
+      } else {
+        await new Promise((r) => setTimeout(r, 80))
+        const startMs = new Date(startDt).getTime()
+        const endMs   = new Date(endDt).getTime() + 86400000
+        monthlyPatterns.value = (PATTERNS as any[]).filter((p) => {
+          const iso = isoDate(p.actual_blast_date)
+          if (!iso) return false
+          const t = new Date(iso).getTime()
+          return t >= startMs && t < endMs
+        })
+      }
+    } catch (err: any) {
+      error.value = err?.message ?? String(err)
+    } finally {
+      monthlyLoading.value = false
+    }
+  }
+
+  // ── loadByRange (by actual_blast_date; explicit start/end date range) ───────
+  async function loadByRange(startDt: string, endDt: string) {
+    if (!startDt || !endDt) return
+    monthlyLoading.value = true
+    error.value = ''
+    loadedMonth.value = `${startDt}..${endDt}`
+    try {
+      if (isSupabaseConfigured()) {
+        const sb = configuredClient()
+        const { data, error: err } = await sb
+          .from('tdl_patterns')
+          .select('actual_blast_date, actual_blast_vol_bcm, blast_td_updated')
+          .gte('actual_blast_date', startDt)
+          .lte('actual_blast_date', endDt)
+        if (err) throw err
+        monthlyPatterns.value = data ?? []
+      } else {
+        await new Promise((r) => setTimeout(r, 80))
+        const startMs = new Date(startDt).getTime()
+        const endMs   = new Date(endDt).getTime() + 86400000
+        monthlyPatterns.value = (PATTERNS as any[]).filter((p) => {
+          const iso = isoDate(p.actual_blast_date)
+          if (!iso) return false
+          const t = new Date(iso).getTime()
+          return t >= startMs && t < endMs
+        })
+      }
+    } catch (err: any) {
+      error.value = err?.message ?? String(err)
+    } finally {
+      monthlyLoading.value = false
     }
   }
 
@@ -270,6 +344,7 @@ export const usePatternsStore = defineStore('patterns', () => {
 
   return {
     patterns, pitNames, loading, saving, error, loadedWeekId,
-    loadByWeek, save, updateRow, updateById, deleteById, upsertMany,
+    monthlyPatterns, monthlyLoading, loadedMonth,
+    loadByWeek, loadByMonth, loadByRange, save, updateRow, updateById, deleteById, upsertMany,
   }
 })

@@ -3,7 +3,7 @@
 
     <!-- toolbar -->
     <div class="frr-toolbar">
-      <button class="frr-export-btn" @click="exportExcel">
+      <button v-if="!hideExport" class="frr-export-btn" @click="exportExcel">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
           stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -11,6 +11,15 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
         EXPORT
+      </button>
+      <button v-if="showImageExport" class="frr-export-btn" @click="exportImage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        PNG
       </button>
       <div class="frr-radio-group">
         <label v-for="opt in shiftOpts" :key="opt.value" class="frr-radio">
@@ -22,12 +31,12 @@
 
     <!-- title -->
     <div class="frr-title-block">
-      <div class="frr-title">รายงานการทำงานรถเจาะ รายคัน ({{ weekLabel }})</div>
-      <div class="frr-source">Week {{ week?.week_id }} · {{ rigData.length }} rigs</div>
+      <div class="frr-title">รายงานการทำงานรถเจาะ รายคัน ({{ rangeLabel }})</div>
+      <div class="frr-source">{{ sourceLabel }} · {{ rigData.length }} rigs</div>
     </div>
 
     <!-- legend (top-right) -->
-    <div class="frr-legend">
+    <div v-if="!hideChart" class="frr-legend">
       <span class="frr-leg-item"><span class="frr-leg-bar" />เมตร/ชม.</span>
       <span class="frr-leg-item"><span class="frr-leg-dot" style="background:#2d3436" />ลิตร/ชม.</span>
       <span class="frr-leg-item"><span class="frr-leg-dot" style="background:#4caf50" />เมตร/ลิตร (แกนขวา)</span>
@@ -37,10 +46,10 @@
     <div v-if="fuelStore.loading || drillStore.loading" class="frr-overlay">Loading…</div>
 
     <!-- chart -->
-    <div ref="chartEl" class="frr-chart" />
+    <div v-if="!hideChart" ref="chartEl" class="frr-chart" />
 
     <!-- KPI table per rig -->
-    <div class="frr-kpi-scroll">
+    <div v-if="!hideTable" class="frr-kpi-scroll">
       <table class="frr-kpi-tbl">
         <thead>
           <tr>
@@ -72,13 +81,25 @@ import { useFuelLogStore }  from '../../stores/FuelLog.stores.ts';
 import { useDrillLogStore } from '../../stores/DrillLog.stores.ts';
 
 const props = defineProps({
-  week: { type: Object, required: true },
+  week: { type: Object, default: null },
+  // When both are set, the chart aggregates over this date range (day-based)
+  // instead of the active week.
+  startDate: { type: String, default: '' },
+  endDate: { type: String, default: '' },
+  hideTable: { type: Boolean, default: false },
+  hideExport: { type: Boolean, default: false },
+  hideChart: { type: Boolean, default: false },
+  showImageExport: { type: Boolean, default: false },
 });
+
+// Range mode reads month/range-scoped store refs; week mode reads week refs.
+const rangeMode = computed(() => !!(props.startDate && props.endDate));
 
 const fuelStore  = useFuelLogStore();
 const drillStore = useDrillLogStore();
 const chartEl    = ref(null);
 let   chart      = null;
+let   ro         = null;
 
 const shiftFilter = ref('all');
 const shiftOpts   = [
@@ -87,22 +108,59 @@ const shiftOpts   = [
   { value: 'night', label: 'กลางคืน' },
 ];
 
-// ── week label ────────────────────────────────────────────────────────────────
-const weekLabel = computed(() => {
+// ── title / source labels ─────────────────────────────────────────────────────
+function fmtDMY(iso) {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+}
+
+const rangeLabel = computed(() => {
+  if (rangeMode.value) {
+    const s = props.startDate;
+    const e = props.endDate;
+    const [y, m] = s.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const wholeMonth = s.slice(0, 7) === e.slice(0, 7)
+      && s.slice(8) === '01'
+      && Number(e.slice(8)) === lastDay;
+    if (wholeMonth) {
+      return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    return s === e ? fmtDMY(s) : `${fmtDMY(s)} – ${fmtDMY(e)}`;
+  }
   if (!props.week?.week_start) return '';
   const d = new Date(props.week.week_start);
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 });
 
+const sourceLabel = computed(() =>
+  rangeMode.value ? 'ช่วงที่เลือก' : `Week ${props.week?.week_id ?? ''}`,
+);
+
+// Tag used in export filenames.
+const reportTag = computed(() =>
+  rangeMode.value
+    ? `${props.startDate}_${props.endDate}`
+    : `week${props.week?.week_id ?? ''}`,
+);
+
 // ── per-rig aggregation ───────────────────────────────────────────────────────
 const rigData = computed(() => {
-  const drillSrc = shiftFilter.value === 'all'
-    ? drillStore.drillLog
-    : drillStore.drillLog.filter(e => e.shift === shiftFilter.value);
+  const drillBase = rangeMode.value ? drillStore.monthlyDrillLog : drillStore.drillLog;
+  const fuelBase  = rangeMode.value ? fuelStore.monthlyLog : fuelStore.fuelLog;
 
-  const fuelSrc = shiftFilter.value === 'all'
-    ? fuelStore.fuelLog
-    : fuelStore.fuelLog.filter(e => e.shift === shiftFilter.value);
+  // In range mode the store may hold a wider span than this chart's window,
+  // so restrict entries to [startDate, endDate] by work_date.
+  const inWindow = (e) => {
+    if (!rangeMode.value) return true;
+    const d = String(e.work_date || '').slice(0, 10);
+    return d >= props.startDate && d <= props.endDate;
+  };
+  const matchShift = (e) => shiftFilter.value === 'all' || e.shift === shiftFilter.value;
+
+  const drillSrc = drillBase.filter(e => inWindow(e) && matchShift(e));
+  const fuelSrc  = fuelBase.filter(e => inWindow(e) && matchShift(e));
 
   // aggregate drill by rig (metres, smuHr from drill log)
   const drillMap = {};
@@ -249,12 +307,19 @@ const chartOption = computed(() => {
 
 // ── chart lifecycle ───────────────────────────────────────────────────────────
 onMounted(() => {
+  if (props.hideChart || !chartEl.value) return;
   chart = echarts.init(chartEl.value);
   chart.setOption(chartOption.value);
   window.addEventListener('resize', onResize);
+  if (chartEl.value && typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => onResize());
+    ro.observe(chartEl.value);
+  }
 });
 
 onUnmounted(() => {
+  ro?.disconnect();
+  ro = null;
   chart?.dispose();
   chart = null;
   window.removeEventListener('resize', onResize);
@@ -278,7 +343,50 @@ function exportExcel() {
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rig Report');
-  XLSX.writeFile(wb, `rig-report-week${props.week?.week_id ?? ''}.xlsx`);
+  XLSX.writeFile(wb, `rig-report-${reportTag.value}.xlsx`);
+}
+
+// ── export chart as PNG image (with title + legend baked in) ────────────────────
+function exportImage() {
+  if (!chartEl.value) return;
+
+  // Render off-screen so the on-screen chart (HTML title/legend) is untouched.
+  const w = Math.max(chartEl.value.clientWidth || 900, 720);
+  const h = (chartEl.value.clientHeight || 340) + 90; // room for title + legend
+  const holder = document.createElement('div');
+  holder.style.cssText = `position:fixed;left:-99999px;top:0;width:${w}px;height:${h}px`;
+  document.body.appendChild(holder);
+
+  const tmp = echarts.init(holder, null, { renderer: 'canvas' });
+  tmp.setOption({
+    ...chartOption.value,
+    grid: { ...chartOption.value.grid, top: 90 },
+    title: {
+      text: `รายงานการทำงานรถเจาะ รายคัน (${rangeLabel.value})`,
+      subtext: `${sourceLabel.value} · ${rigData.value.length} rigs`,
+      left: 16,
+      top: 12,
+      textStyle: { fontSize: 15, fontWeight: 600, color: '#222' },
+      subtextStyle: { fontSize: 11, color: '#999' },
+    },
+    legend: {
+      data: ['เมตร/ชม.', 'ลิตร/ชม.', 'เมตร/ลิตร'],
+      top: 14,
+      right: 16,
+      itemWidth: 12,
+      itemHeight: 8,
+      textStyle: { fontSize: 11, color: '#555' },
+    },
+  });
+
+  const url = tmp.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
+  tmp.dispose();
+  document.body.removeChild(holder);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rig-report-${reportTag.value}.png`;
+  a.click();
 }
 </script>
 

@@ -83,6 +83,34 @@ export const useFuelLogStore = defineStore('fuelLog', () => {
     }
   }
 
+  async function loadByRange(startDt: string, endDt: string) {
+    if (!startDt || !endDt) return
+    const key = `${startDt}..${endDt}`
+    if (loadedMonth.value === key) return
+    monthlyLoading.value = true
+    loadedMonth.value    = key
+    try {
+      if (isSupabaseConfigured()) {
+        const sb = getSupabase()!
+        const { data, error: err } = await sb
+          .from('tdl_fuel_log')
+          .select('*')
+          .gte('work_date', startDt)
+          .lte('work_date', endDt)
+          .order('work_date', { ascending: true })
+        if (err) throw err
+        monthlyLog.value = data ?? []
+      } else {
+        await new Promise(r => setTimeout(r, 60))
+        monthlyLog.value = []
+      }
+    } catch (err: any) {
+      error.value = err?.message ?? String(err)
+    } finally {
+      monthlyLoading.value = false
+    }
+  }
+
   async function addEntry(entry: any) {
     saving.value = true
     error.value  = ''
@@ -144,6 +172,6 @@ export const useFuelLogStore = defineStore('fuelLog', () => {
   return {
     fuelLog, loading, saving, error, loadedWeekId,
     monthlyLog, monthlyLoading, loadedMonth,
-    loadByWeek, loadByMonth, addEntry, updateEntry, deleteEntry,
+    loadByWeek, loadByMonth, loadByRange, addEntry, updateEntry, deleteEntry,
   }
 })

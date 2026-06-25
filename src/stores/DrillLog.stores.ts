@@ -121,6 +121,40 @@ export const useDrillLogStore = defineStore('drillLog', () => {
     }
   }
 
+  // ── loadByRange (explicit start/end date range) ────────────────────────────
+  async function loadByRange(startDt: string, endDt: string) {
+    if (!startDt || !endDt) return
+    const key = `${startDt}..${endDt}`
+    if (loadedMonth.value === key) return
+    monthlyLoading.value = true
+    loadedMonth.value    = key
+    try {
+      if (isSupabaseConfigured()) {
+        const sb = configuredClient()
+        const { data, error: err } = await sb
+          .from('tdl_drill_log')
+          .select('work_date, shift, rig_id, total_drilling_m, smu_hr')
+          .gte('work_date', startDt)
+          .lte('work_date', endDt)
+          .order('work_date', { ascending: true })
+        if (err) throw err
+        monthlyDrillLog.value = data ?? []
+      } else {
+        await new Promise(r => setTimeout(r, 60))
+        const startMs = new Date(startDt).getTime()
+        const endMs   = new Date(endDt).getTime() + 86400000
+        monthlyDrillLog.value = (DRILL_LOG as any[]).filter(e => {
+          const t = new Date(e.work_date).getTime()
+          return t >= startMs && t < endMs
+        })
+      }
+    } catch (err: any) {
+      error.value = err?.message ?? String(err)
+    } finally {
+      monthlyLoading.value = false
+    }
+  }
+
   // ── upsertEntry ────────────────────────────────────────────────────────────
   async function upsertEntry(entry: any) {
     saving.value = true
@@ -208,6 +242,6 @@ export const useDrillLogStore = defineStore('drillLog', () => {
   return {
     drillLog, loading, saving, error, loadedWeekId,
     monthlyDrillLog, monthlyLoading, loadedMonth,
-    loadByWeek, loadByMonth, upsertEntry, deleteEntry,
+    loadByWeek, loadByMonth, loadByRange, upsertEntry, deleteEntry,
   }
 })

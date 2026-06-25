@@ -32,9 +32,10 @@ import { fnum } from '../format.js';
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
+  limit: { type: Number, default: 12 },
 });
 
-const list = computed(() => props.data.slice(0, 12));
+const list = computed(() => props.data.slice(0, props.limit));
 const maxM = computed(() => Math.max(1, ...props.data.map((d) => d.m)));
 const maxSmu = computed(() => Math.max(1, ...props.data.map((d) => d.smu)));
 </script>

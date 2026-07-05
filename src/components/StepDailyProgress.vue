@@ -527,6 +527,7 @@ watchEffect(() => {
 .daily-content-stack {
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -865,7 +866,7 @@ watchEffect(() => {
 
 @media (max-width: 980px) {
   .daily-main-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .daily-pit-sidebar {
@@ -886,7 +887,13 @@ watchEffect(() => {
   }
 
   .daily-selected-stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .daily-selected-stats {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

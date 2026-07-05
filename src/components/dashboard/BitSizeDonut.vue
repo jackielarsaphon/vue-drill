@@ -1,5 +1,5 @@
 ﻿<template>
-  <div style="display: flex; align-items: center; gap: 24px">
+  <div style="display: flex; align-items: center; gap: 24px; flex-wrap: wrap; justify-content: center">
     <svg width="180" height="180" viewBox="0 0 180 180">
       <path v-for="(s, i) in slices" :key="i" :d="s.d" :fill="s.color" />
       <text x="90" y="86" text-anchor="middle" font-size="11" fill="var(--ink-3)" style="letter-spacing: 0.1em">

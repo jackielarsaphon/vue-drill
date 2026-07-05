@@ -56,7 +56,6 @@
             <th class="c">#</th>
             <th>Pattern ID</th>
             <th class="r">Holes</th>
-            <th class="r">Bit mm</th>
             <th class="r">Plan m</th>
             <th class="r">Carried m</th>
             <th class="r">Remain m</th>
@@ -68,7 +67,7 @@
         <tbody>
           <template v-for="group in importPreviewGroups" :key="group.pit">
             <tr class="import-pit-row">
-              <td colspan="10">
+              <td colspan="9">
                 <span class="mono" style="font-weight:700">{{ group.pit }}</span>
                 <span class="dim" style="margin-left:8px;font-size:11px">{{ group.rows.length }} patterns</span>
               </td>
@@ -77,7 +76,6 @@
               <td class="c mono dim">{{ i + 1 }}</td>
               <td class="mono" style="font-size:11px;white-space:nowrap">{{ r.pattern_id }}</td>
               <td class="num r" :class="!r.num_holes ? 'cell-zero' : ''">{{ r.num_holes }}</td>
-              <td class="num r" :class="r.hole_diameter_mm === 115 ? 'cell-default' : ''">{{ r.hole_diameter_mm }}</td>
               <td class="num r" :class="!r.plan_total_drilling_m ? 'cell-zero' : ''">{{ fnum(r.plan_total_drilling_m, 1) }}</td>
               <td class="num r dim">{{ fnum(r.carried_drilling_m, 1) }}</td>
               <td class="num r">{{ fnum(r.effective_m, 1) }}</td>
@@ -165,8 +163,7 @@
             <th class="c">Type</th>
             <th class="c">RL</th>
             <th class="r">Bench</th>
-            <th class="r">Holes</th>
-            <th class="r">Bit dia</th>
+            <th class="c">Holes</th>
             <th class="r">Plan m</th>
             <th class="r">Remain</th>
             <th class="r">Vol bcm</th>
@@ -195,11 +192,8 @@
             <td class="num r">
               <input class="mono edit-cell r" type="number" step="0.1" :disabled="locked && !p._unsaved" :value="p.bench_height_m" @change="updateBench(p, $event.target.value)" />
             </td>
-            <td class="num r">
-              <input class="mono edit-cell r" type="number" :disabled="locked && !p._unsaved" :value="p.num_holes" @change="updateNumber(p, 'num_holes', $event.target.value, 0)" />
-            </td>
-            <td class="num r">
-              <input class="mono edit-cell r" type="number" :disabled="locked && !p._unsaved" :value="p.hole_diameter_mm" @change="updateNumber(p, 'hole_diameter_mm', $event.target.value, 115)" />
+            <td class="num c">
+              <input class="mono edit-cell holes-cell" type="number" step="0.01" :disabled="locked && !p._unsaved" :value="p.num_holes" @change="updateNumber(p, 'num_holes', $event.target.value, 0)" />
             </td>
             <td class="num r plan-m-col">
               <input class="mono edit-cell plan-m-cell r" :disabled="locked && !p._unsaved" :value="commaNumber(p.plan_total_drilling_m)" @change="updateMetres(p, 'plan_total_drilling_m', $event.target.value)" />
@@ -225,7 +219,7 @@
           </tr>
           <tr style="background: var(--surface-2)">
             <td class="c"><span class="dim">+</span></td>
-            <td colspan="12" style="color: var(--ink-3)">
+            <td colspan="10" style="color: var(--ink-3)">
               <button type="button" class="btn" data-variant="ghost" data-size="sm" @click="addPattern">
                 <span class="ic"><component :is="I.plus" /></span>Add pattern to
                 <span class="mono" style="margin-left: 4px">{{ pit }}</span>
@@ -938,8 +932,25 @@ onUnmounted(() => clearTimeout(flashTimer));
   text-align: center;
 }
 
+/* Holes carries 2-decimal values (e.g. 340.64) — wider + centred so it isn't clipped */
+.holes-cell {
+  width: 92px;
+  text-align: center;
+}
+
 .edit-cell.r {
   text-align: right;
+}
+
+/* Hide number-input spinners so decimals aren't clipped by the up/down arrows */
+.edit-cell[type='number']::-webkit-inner-spin-button,
+.edit-cell[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.edit-cell[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .pattern-input:focus,

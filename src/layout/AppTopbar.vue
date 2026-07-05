@@ -73,4 +73,13 @@ defineEmits(['logout', 'menu']);
   color: var(--ink-3);
   font-size: 11px;
 }
+
+@media (max-width: 600px) {
+  .top-user { gap: 8px; }
+  .top-user-text { display: none; }
+}
+
+@media (max-width: 360px) {
+  .sb-role { display: none; }
+}
 </style>

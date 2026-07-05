@@ -124,8 +124,9 @@ input:focus, select:focus, textarea:focus, button:focus { outline: none; }
    ============================================================ */
 .app {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
   background: var(--bg);
 }
 
@@ -329,7 +330,8 @@ input:focus, select:focus, textarea:focus, button:focus { outline: none; }
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 16px 24px;
   padding-bottom: 20px;
   margin-bottom: 20px;
   border-bottom: 1px solid var(--line);
@@ -1081,7 +1083,7 @@ input:focus, select:focus, textarea:focus, button:focus { outline: none; }
   position: fixed;
   top: 80px;
   right: 32px;
-  width: 320px;
+  width: min(320px, calc(100vw - 24px));
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -1107,7 +1109,7 @@ input:focus, select:focus, textarea:focus, button:focus { outline: none; }
   justify-content: flex-end;
 }
 .drawer {
-  width: 440px;
+  width: min(440px, 100vw);
   background: var(--surface);
   border-left: 1px solid var(--line);
   height: 100%;
@@ -1705,10 +1707,32 @@ input:focus, select:focus, textarea:focus, button:focus { outline: none; }
 }
 
 /* ============================================================
-   MOBILE
+   RESPONSIVE
+   Breakpoints: 1200 (small laptop) · 1024 (tablet landscape)
+   · 768 (tablet portrait / mobile shell) · 480 · 360
    ============================================================ */
 .sb-menu-btn { display: none; }
 
+/* ---- small laptops / large tablets: ease the densest grids ---- */
+@media (max-width: 1200px) {
+  .grid-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .form-grid .span-4 { grid-column: span 3; }
+}
+
+/* ---- tablet landscape ---- */
+@media (max-width: 1024px) {
+  .app { grid-template-columns: 200px minmax(0, 1fr); }
+  .page { padding: 20px 24px 72px; }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .split-2-1 { grid-template-columns: minmax(0, 1fr); }
+  .split-1-2 { grid-template-columns: minmax(0, 1fr); }
+  .log-shell { grid-template-columns: 240px minmax(0, 1fr); }
+  .brief-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- tablet portrait / mobile shell: sidebar becomes off-canvas ---- */
 @media (max-width: 768px) {
   .app {
     grid-template-columns: 1fr;
@@ -1753,31 +1777,89 @@ input:focus, select:focus, textarea:focus, button:focus { outline: none; }
     color: var(--ink);
   }
 
+  .topbar { padding: 0 16px; gap: 10px; }
   .tb-crumb { display: none; }
+  .tb-title { min-width: 0; }
+  .tb-title > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .page { padding: 16px 16px 80px; }
+  /* let the week selector shrink to fit narrow rows */
+  .week-pick { min-width: 0; }
+  .week-pick-body { min-width: 0; }
 
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
-  .grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .grid-2 { grid-template-columns: 1fr; }
-  .split-2-1 { grid-template-columns: 1fr; }
-  .split-1-2 { grid-template-columns: 1fr; }
-  .form-grid { grid-template-columns: repeat(2, 1fr); }
+  .page { padding: 16px 16px 72px; }
+
+  /* page header: title stacks above its controls */
+  .page-head { align-items: stretch; }
+
+  /* card headers wrap their actions below the title when cramped */
+  .card-head { flex-wrap: wrap; }
+
+  /* segmented switchers scroll within themselves rather than
+     forcing the page wider than the viewport */
+  .seg {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .seg::-webkit-scrollbar { display: none; }
+  .seg > button { flex: 1 0 auto; white-space: nowrap; }
+
+  .stepper { overflow-x: auto; padding-bottom: 8px; }
+  .step { flex-shrink: 0; }
+
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .split-2-1 { grid-template-columns: minmax(0, 1fr); }
+  .split-1-2 { grid-template-columns: minmax(0, 1fr); }
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-grid .span-4 { grid-column: span 2; }
-  .log-shell { grid-template-columns: 1fr; }
-  .pit-map-grid { grid-template-columns: 1fr; }
-  .brief-headline { grid-template-columns: repeat(2, 1fr); }
-  .brief-body { grid-template-columns: 1fr; }
+  .log-shell { grid-template-columns: minmax(0, 1fr); }
+  .pit-map-grid { grid-template-columns: minmax(0, 1fr); }
+  .brief-headline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .brief-body { grid-template-columns: minmax(0, 1fr); }
+
+  /* briefing masthead stacks on small screens */
+  .brief-masthead { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .brief-title { font-size: 28px; }
+  .brief-stat.huge .brief-stat-val { font-size: 38px; }
+
+  /* wide pattern row collapses to a stacked card */
+  .pat-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    position: relative;
+    padding-right: 40px;
+  }
+  .pat-row > button { position: absolute; top: 12px; right: 8px; }
 }
 
 @media (max-width: 480px) {
+  .page { padding: 12px 12px 64px; }
+
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-3 { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid .span-2 { grid-column: span 1; }
   .form-grid .span-4 { grid-column: span 1; }
+
+  .page-title { font-size: 19px; }
+  .kpi-val { font-size: 24px; }
+
   .brief-headline { grid-template-columns: 1fr; }
+  .brief-title { font-size: 23px; }
+  .brief-perf-grid { grid-template-columns: 1fr; }
+  .brief-list > li { grid-template-columns: 1fr; gap: 4px; }
+  .brief-list-action { text-align: left; }
   .brief-rank > li { grid-template-columns: 22px 1fr 60px; }
   .brief-rank > li > :last-child { display: none; }
+}
+
+/* ---- very small phones ---- */
+@media (max-width: 360px) {
+  .grid-4 { grid-template-columns: 1fr; }
+  .topbar { padding: 0 12px; gap: 8px; }
 }

@@ -34,7 +34,7 @@ function toDbRow(p: any) {
     rl_level:              p.rl_level              ?? 0,
     bench_height_m:        p.bench_height_m        ?? 0,
     hole_diameter_mm:      p.hole_diameter_mm      ?? 115,
-    num_holes:             Math.round(Number(p.num_holes)     || 0),
+    num_holes:             +(Number(p.num_holes) || 0).toFixed(2),
     plan_total_drilling_m: p.plan_total_drilling_m ?? 0,
     carried_drilling_m:    p.carried_drilling_m    ?? 0,
     carried_progress_pct:  p.carried_progress_pct  ?? 0,

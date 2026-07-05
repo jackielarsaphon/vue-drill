@@ -51,6 +51,7 @@
 
     <div class="grid-2" style="margin-bottom: 12px">
       <Card title="Operator metres" sub="Net m by operator · 7 days" :pad="false">
+        <div class="ops-table-wrap">
         <table class="tbl">
           <thead>
             <tr>
@@ -83,9 +84,11 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </Card>
 
       <Card title="Remaining patterns" sub="Sorted by blast due date" :pad="false">
+        <div class="ops-table-wrap">
         <table class="tbl">
           <thead>
             <tr>
@@ -114,6 +117,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </Card>
     </div>
   </div>
@@ -183,6 +187,10 @@ const rem = computed(() =>
 </script>
 
 <style scoped>
+.ops-table-wrap {
+  overflow-x: auto;
+}
+
 .ops-empty {
   margin: 0;
   padding: 28px 12px;

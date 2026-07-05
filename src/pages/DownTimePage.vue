@@ -419,12 +419,24 @@ function fmtIso(value) {
 
 .form-grid-dt {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 16px;
 }
 
 .span-3 {
   grid-column: span 3;
+}
+
+@media (max-width: 768px) {
+  .dt-page { padding: 16px 16px 72px; }
+  .page-head { flex-direction: column; align-items: stretch; }
+  .form-grid-dt { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid-dt .span-3 { grid-column: span 2; }
+}
+
+@media (max-width: 480px) {
+  .form-grid-dt { grid-template-columns: minmax(0, 1fr); }
+  .form-grid-dt .span-3 { grid-column: span 1; }
 }
 
 .save-entry-row {

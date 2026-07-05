@@ -315,6 +315,10 @@ async function saveEditedAndConfirm() {
   flex-shrink: 0;
 }
 
+@media (max-width: 768px) {
+  .week-row { padding: 10px 16px; flex-wrap: wrap; justify-content: space-between; }
+}
+
 /* ── bell button ─────────────────────────────────────────────────── */
 .bell-wrap { position: relative; flex-shrink: 0; }
 
@@ -360,7 +364,7 @@ async function saveEditedAndConfirm() {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 340px;
+  width: min(340px, calc(100vw - 24px));
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;

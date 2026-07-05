@@ -245,9 +245,44 @@ function numericColumns(afterPattern, parts) {
     }
   }
   if (pfIdx >= 0) {
+    // Locate Blast Volumes (bcm) — the single largest value to the right of the
+    // bit-diameter column — and Number of Holes, which sits immediately before it.
+    const searchStart = pfIdx + 3;
+    let vIdx = -1;
+    for (let i = searchStart; i < values.length; i++) {
+      if (vIdx < 0 || values[i] > values[vIdx]) vIdx = i;
+    }
+    // Newer LXML exports insert extra geometry columns (Total drill rig, Days,
+    // Burden, Spacing, No Rows, Max No Drills) between Total Drilling and Blast
+    // Volumes, so the classic fixed offsets no longer line up. Detect that
+    // "extended" layout by how far Blast Volumes sits from the bit-dia anchor and
+    // read the columns by value instead of position.
+    const extended = vIdx - pfIdx >= 10;
+    if (extended && vIdx > searchStart) {
+      const holeDepth = values[pfIdx + 2];
+      const volume = values[vIdx];
+      const holes = values[vIdx - 1];
+      // Total Drilling ≈ Number of Holes × Hole Depth — use it to tell the real
+      // plan-metres column apart from the similar-magnitude "Drilling meter per day".
+      let plan = 0;
+      if (holeDepth > 0 && holeDepth <= 30 && holes > 0) {
+        const expected = holes * holeDepth;
+        let best = -1;
+        for (let i = searchStart; i < vIdx - 1; i++) {
+          if (values[i] <= 0) continue;
+          if (best < 0 || Math.abs(values[i] - expected) < Math.abs(values[best] - expected)) best = i;
+        }
+        plan = best >= 0 ? values[best] : expected;
+      }
+      if (volume >= holes && holes > 0 && plan > 0) {
+        const result = { holes: +holes.toFixed(2), bit: 115, plan, carried: 0, effective: plan, volume, blastArea: pfIdx > 0 ? values[pfIdx - 1] : 0 };
+        console.log('[parse] LXML(extended) pfIdx=' + pfIdx + ' vIdx=' + vIdx + ' → holes=' + result.holes + ' plan=' + result.plan + ' vol=' + result.volume);
+        return result;
+      }
+    }
     const result = {
-      holes: Math.round(values[pfIdx + 7] || 0),
-      bit: values[pfIdx + 1],
+      holes: +(values[pfIdx + 7] || 0).toFixed(2),
+      bit: 115,
       plan: values[pfIdx + 5] || 0,
       carried: 0,
       effective: values[pfIdx + 5] || 0,
@@ -256,6 +291,34 @@ function numericColumns(afterPattern, parts) {
     };
     console.log('[parse] LXML pfIdx=' + pfIdx + ' values=' + JSON.stringify(values.slice(0, 12)) + ' → holes=' + result.holes + ' plan=' + result.plan + ' vol=' + result.volume);
     return result;
+  }
+
+  // No powder+bit anchor — e.g. a plan (often a PDF) without a Hole Diameter column:
+  // BlastArea, PowderFactor, DrillPerDay, TotalDrilling, Stemming, NumberOfHoles, BlastVolumes.
+  // Anchor on Blast Volumes (the largest value in the row) and read Number of Holes just
+  // before it; recover Total Drilling as the column closest to holes × hole depth
+  // (hole depth ≈ bench height + 0.5 m sub-drill, taken from the pattern ID).
+  {
+    let vIdx = -1;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i] > 0 && (vIdx < 0 || values[i] > values[vIdx])) vIdx = i;
+    }
+    if (vIdx > 1) {
+      const volume = values[vIdx];
+      const holes = values[vIdx - 1];
+      const holeDepth = parts.bench_height_m > 0 ? parts.bench_height_m + 0.5 : 6;
+      const expected = holes * holeDepth;
+      let best = -1;
+      for (let i = 0; i < vIdx - 1; i++) {
+        if (values[i] <= 0) continue;
+        if (best < 0 || Math.abs(values[i] - expected) < Math.abs(values[best] - expected)) best = i;
+      }
+      const plan = best >= 0 ? values[best] : expected;
+      if (volume >= holes && holes > 0 && plan > 0) {
+        console.log('[parse] LXML(no-bit) vIdx=' + vIdx + ' → holes=' + holes + ' plan=' + plan + ' vol=' + volume);
+        return { holes: +holes.toFixed(2), bit: 115, plan, carried: 0, effective: plan, volume, blastArea: values[0] > 0 ? values[0] : 0 };
+      }
+    }
   }
 
   for (let i = 0; i < values.length - 7; i++) {
@@ -327,7 +390,7 @@ function numericColumns(afterPattern, parts) {
   effective = Math.max(0, effective || plan - carried);
   volume = Math.max(0, volume);
 
-  return { holes: Math.round(holes), bit, plan, carried, effective, volume, blastArea: Math.round((holes || 0) * 45) };
+  return { holes: +(holes || 0).toFixed(2), bit, plan, carried, effective, volume, blastArea: Math.round((holes || 0) * 45) };
 }
 
 export function parseTableRow(input, existingRows, week = WEEK) {
@@ -352,7 +415,7 @@ export function parseTableRow(input, existingRows, week = WEEK) {
     pattern_type: parts.pattern_type,
     rl_level: parts.rl_level,
     bench_height_m: parts.bench_height_m,
-    hole_diameter_mm: bit,
+    hole_diameter_mm: 115, // Bit dia is not imported — default per plan spec
     num_holes: holes,
     plan_total_drilling_m: +plan.toFixed(1),
     carried_drilling_m: +carried.toFixed(1),
@@ -808,8 +871,8 @@ function buildStructuredRow(row, map, existingRows, week) {
   }
   const carried = toNumber(cell(row, map, 'carried_drilling_m'), 0);
   const effective = toNumber(cell(row, map, 'effective_m'), Math.max(0, plan - carried));
-  const holes = Math.round(toNumber(cell(row, map, 'num_holes'), 0));
-  const bit = toNumber(cell(row, map, 'hole_diameter_mm'), 115);
+  // Number of Holes is a computed LXML value that carries decimals — keep 2dp, don't round to int
+  const holes = +toNumber(cell(row, map, 'num_holes'), 0).toFixed(2);
   const volume = toNumber(cell(row, map, 'plan_blast_vol_bcm'), Math.round(holes * parts.bench_height_m * 45));
   const priority = toNumber(cell(row, map, 'pit_priority'), nextPitPriorityExcel(parts.pit_name, existingRows));
   const blastArea = map.blast_area_m2 !== undefined
@@ -824,7 +887,7 @@ function buildStructuredRow(row, map, existingRows, week) {
     pattern_type: String(cell(row, map, 'pattern_type') || parts.pattern_type).trim().toUpperCase().replace(/\s+/g, '_'),
     rl_level: toNumber(cell(row, map, 'rl_level'), parts.rl_level),
     bench_height_m: toNumber(cell(row, map, 'bench_height_m'), parts.bench_height_m),
-    hole_diameter_mm: bit,
+    hole_diameter_mm: 115, // Bit dia is not imported — default per plan spec
     num_holes: holes,
     plan_total_drilling_m: +plan.toFixed(1),
     carried_drilling_m: +carried.toFixed(1),

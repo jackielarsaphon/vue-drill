@@ -165,6 +165,7 @@
         <div class="hr" />
 
         <div class="form-grid">
+          <Field label="Drill bit size (mm)" :hint="pat?.hole_diameter_mm ? `Auto from pattern: ${pat.hole_diameter_mm} mm` : ''"><input v-model.number="bitSize" class="mono" type="number" /></Field>
           <Field label="Total drilling (m)" hint="Net drilling metres"><input v-model.number="totalDrilling" class="mono" type="number" step="0.1" /></Field>
           <Field label="Redrill (m)" hint="Excluded from net progress"><input v-model.number="redrill" class="mono" type="number" step="0.1" /></Field>
         </div>
@@ -225,6 +226,7 @@
               <th>Shift</th>
               <th>Rig</th>
               <th>Operator</th>
+              <th class="r">Bit mm</th>
               <th class="r">Redrill</th>
               <th class="r">Net m</th>
               <th class="r">SMU h</th>
@@ -247,6 +249,7 @@
               </td>
               <td><span class="mono">{{ e.rig_id }}</span></td>
               <td>{{ e.employee_name }}</td>
+              <td class="num r dim">{{ e.drill_bit_size_mm ?? '—' }}</td>
               <td class="num r dim">{{ e.redrill_m > 0 ? fnum(e.redrill_m, 1) : '—' }}</td>
               <td class="num r"><strong>{{ fnum(e.total_drilling_m, 1) }}</strong></td>
               <td class="num r">{{ fnum(e.smu_hr, 1) }}</td>
@@ -330,6 +333,7 @@
               <th class="r">RL</th>
               <th class="r">Bench m</th>
               <th class="r">Holes</th>
+              <th class="r">Bit mm</th>
               <th class="r">Plan m</th>
               <th class="r">Eff. m</th>
               <th>Blast date</th>
@@ -343,6 +347,7 @@
               <td><input v-model.number="p.rl_level" class="tbl-input mono r" type="number" style="width:56px" /></td>
               <td><input v-model.number="p.bench_height_m" class="tbl-input mono r" type="number" style="width:56px" /></td>
               <td><input v-model.number="p.num_holes" class="tbl-input mono r" type="number" style="width:60px" /></td>
+              <td><input v-model.number="p.hole_diameter_mm" class="tbl-input mono r" type="number" style="width:60px" /></td>
               <td><input v-model.number="p.plan_total_drilling_m" class="tbl-input mono r" type="number" step="0.1" style="width:72px" /></td>
               <td><input v-model.number="p.effective_m" class="tbl-input mono r" type="number" step="0.1" style="width:72px" /></td>
               <td><input v-model="p.blast_date" class="tbl-input mono" type="date" style="width:130px" /></td>
@@ -383,6 +388,7 @@
               <th>กะ</th>
               <th>Rig</th>
               <th>พนักงาน</th>
+              <th class="r">Bit mm</th>
               <th class="r">Net m</th>
               <th class="r">Redrill</th>
               <th class="r">SMU start</th>
@@ -405,6 +411,7 @@
               <td><span class="mono" :style="{ color: row.shift === 'night' ? 'var(--ink-3)' : undefined }">{{ row.shift }}</span></td>
               <td class="mono">{{ row.rig_id || '—' }}</td>
               <td>{{ row.employee_name || '—' }}</td>
+              <td class="r num">{{ row.drill_bit_size_mm || '—' }}</td>
               <td class="r num"><strong>{{ row.total_drilling_m }}</strong></td>
               <td class="r num dim">{{ row.redrill_m > 0 ? row.redrill_m : '—' }}</td>
               <td class="r num dim">{{ row.smu_start || '—' }}</td>

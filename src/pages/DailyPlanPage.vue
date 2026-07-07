@@ -5,10 +5,16 @@
         <h1 class="page-title">Plan Daily</h1>
         <p class="page-sub">Enter the planned daily totals for the week — independent of the per-pattern plan.</p>
       </div>
-      <button type="button" class="btn" data-variant="primary" :disabled="dailyTargetsStore.saving" @click="save">
-        <span class="ic"><component :is="I.save" /></span>
-        {{ dailyTargetsStore.saving ? 'Saving…' : 'Save daily plan' }}
-      </button>
+      <div class="daily-plan-actions">
+        <button type="button" class="btn" :disabled="refreshing" @click="reload">
+          <span class="ic"><component :is="I.refresh" /></span>
+          {{ refreshing ? 'กำลังดึง…' : 'ดึงข้อมูลใหม่' }}
+        </button>
+        <button type="button" class="btn" data-variant="primary" :disabled="dailyTargetsStore.saving" @click="save">
+          <span class="ic"><component :is="I.save" /></span>
+          {{ dailyTargetsStore.saving ? 'Saving…' : 'Save daily plan' }}
+        </button>
+      </div>
     </div>
 
     <Card
@@ -190,6 +196,7 @@ const patternsStore = usePatternsStore();
 const { patterns, pitNames } = storeToRefs(patternsStore);
 
 const flash = ref('');
+const refreshing = ref(false);
 
 // Per-pit daily plan. valueMap keyed `${metric}__${pit}__${iso}`.
 const valueMap = ref({});
@@ -259,7 +266,10 @@ function mergePits(sources) {
   for (const src of sources) {
     for (const p of src || []) {
       const k = pitKey(p);
-      if (k && !out.includes(k)) out.push(k);
+      // Keep '' too: it is the legacy "no pit" bucket (aggregate plan saved before
+      // the per-pit split) — showing it as a "(ไม่ระบุบ่อ)" tab keeps this page and
+      // the dashboards consistent, and lets the user clear or reassign that data.
+      if (!out.includes(k)) out.push(k);
     }
   }
   return out;
@@ -395,6 +405,23 @@ function populateValueMap() {
 
 watch(targets, populateValueMap, { immediate: true });
 
+// Re-pull the current week: pits from Blast patterns + the latest saved daily plan.
+// (Also refreshes the actual drilling/blast used by the charts.)
+async function reload() {
+  const id = Number(props.week?.week_id);
+  if (props.week?.week_id == null || Number.isNaN(id)) return;
+  refreshing.value = true;
+  try {
+    await Promise.all([
+      dailyTargetsStore.loadByWeek(id),
+      drillLogStore.loadByWeek(id),
+      patternsStore.loadByWeek(id),
+    ]);
+  } finally {
+    refreshing.value = false;
+  }
+}
+
 watch(
   () => props.week?.week_id,
   async (weekId) => {
@@ -403,11 +430,7 @@ watch(
     // Page-local pit edits don't carry across weeks.
     manualPits.value = [];
     removedPits.value = [];
-    await Promise.all([
-      dailyTargetsStore.loadByWeek(id),
-      drillLogStore.loadByWeek(id),
-      patternsStore.loadByWeek(id),
-    ]);
+    await reload();
   },
   { immediate: true },
 );
@@ -453,6 +476,12 @@ onUnmounted(() => clearTimeout(flashTimer));
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.daily-plan-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .daily-plan-wrap {

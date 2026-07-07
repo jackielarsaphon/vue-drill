@@ -197,7 +197,10 @@ const targetByDay = computed(() => {
   for (const r of monthlyTargets.value) {
     const iso = isoDay(r.plan_date);
     if (!iso) continue;
-    m[iso] = { drilling_m: Number(r.drilling_m) || 0, blast_vol_bcm: Number(r.blast_vol_bcm) || 0 };
+    // A date can now have multiple rows (one per pit) — accumulate.
+    const cur = m[iso] || (m[iso] = { drilling_m: 0, blast_vol_bcm: 0 });
+    cur.drilling_m += Number(r.drilling_m) || 0;
+    cur.blast_vol_bcm += Number(r.blast_vol_bcm) || 0;
   }
   return m;
 });

@@ -29,44 +29,106 @@
       </div>
 
       <div v-else class="daily-plan-wrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th class="daily-plan-metric-th">Metric</th>
-              <th v-for="d in weekDays" :key="d.iso" class="r daily-plan-th">
-                <span class="daily-plan-dow">{{ d.dow }}</span>
-                <span class="daily-plan-dm">{{ d.dm }}</span>
-              </th>
-              <th class="r daily-plan-total-th">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="daily-plan-metric">Total drilling metres per day</td>
-              <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-col">
-                <input
-                  class="mono edit-cell daily-plan-cell r"
-                  :value="getValue('drilling_m', d.iso)"
-                  placeholder="—"
-                  @change="setValue('drilling_m', d.iso, $event.target.value)"
-                />
-              </td>
-              <td class="num r daily-plan-total-col"><strong>{{ rowTotal('drilling_m') > 0 ? commaNumber(rowTotal('drilling_m')) : '—' }}</strong></td>
-            </tr>
-            <tr>
-              <td class="daily-plan-metric">Total blast volumes per day (bcm)</td>
-              <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-col">
-                <input
-                  class="mono edit-cell daily-plan-cell r"
-                  :value="getValue('blast_vol_bcm', d.iso)"
-                  placeholder="—"
-                  @change="setValue('blast_vol_bcm', d.iso, $event.target.value)"
-                />
-              </td>
-              <td class="num r daily-plan-total-col"><strong>{{ rowTotal('blast_vol_bcm') > 0 ? commaNumber(rowTotal('blast_vol_bcm')) : '—' }}</strong></td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="daily-plan-addpit">
+          <div class="filter-sel daily-plan-newpit">
+            <span class="filter-sel-key">New pit</span>
+            <input
+              v-model="newPitName"
+              class="mono daily-plan-newpit-input"
+              placeholder="e.g. NLU04"
+              @keyup.enter="addPit"
+            />
+          </div>
+          <button type="button" class="btn" data-size="sm" data-variant="primary" @click="addPit">
+            <span class="ic"><component :is="I.plus" /></span>Add pit
+          </button>
+          <span class="daily-plan-addpit-hint">บ่อจาก Blast patterns จะขึ้นเป็นแท็บอัตโนมัติ · เพิ่มบ่อพิเศษเฉพาะหน้านี้ได้ที่นี่</span>
+        </div>
+
+        <div v-if="pits.length" class="pit-tabs">
+          <button
+            v-for="p in pits"
+            :key="p"
+            type="button"
+            class="pit-tab"
+            :data-active="p === activePit ? 'true' : undefined"
+            @click="activePit = p"
+          >
+            {{ pitLabel(p) }} <span class="count">{{ pitDayCount(p) }}</span>
+          </button>
+        </div>
+
+        <div v-if="!pits.length" class="daily-plan-empty">
+          ยังไม่มีบ่อ — ดึงจาก Blast patterns ของสัปดาห์นี้ หรือกด Add pit เพื่อเพิ่มบ่อเฉพาะหน้านี้
+        </div>
+
+        <div v-else class="daily-plan-pit-panel">
+          <div class="daily-plan-panel-head">
+            <span class="daily-plan-pit-label mono">{{ pitLabel(activePit) }}</span>
+            <button
+              v-if="!isPatternPit(activePit)"
+              type="button"
+              class="daily-plan-remove-btn"
+              title="Remove this pit from the daily plan"
+              @click="removePit(activePit)"
+            >
+              <span class="ic"><component :is="I.x" /></span>ลบบ่อ
+            </button>
+          </div>
+
+          <div class="daily-plan-hscroll">
+            <table class="tbl daily-plan-h-tbl">
+              <thead>
+                <tr>
+                  <th class="daily-plan-metric-th">Metric</th>
+                  <th v-for="d in weekDays" :key="d.iso" class="r daily-plan-day-th">
+                    <span class="daily-plan-dow">{{ d.dow }}</span>
+                    <span class="daily-plan-dm">{{ d.dm }}</span>
+                  </th>
+                  <th class="r daily-plan-total-th">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="daily-plan-metric">Drilling metres</td>
+                  <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-day-col">
+                    <input
+                      class="mono edit-cell daily-plan-cell r"
+                      :value="getValue('drilling_m', activePit, d.iso)"
+                      placeholder="—"
+                      @change="setValue('drilling_m', activePit, d.iso, $event.target.value)"
+                    />
+                  </td>
+                  <td class="num r daily-plan-total-col">
+                    <strong>{{ pitTotal('drilling_m', activePit) > 0 ? commaNumber(pitTotal('drilling_m', activePit)) : '—' }}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="daily-plan-metric">Blast vol (bcm)</td>
+                  <td v-for="d in weekDays" :key="d.iso" class="num r daily-plan-day-col">
+                    <input
+                      class="mono edit-cell daily-plan-cell r"
+                      :value="getValue('blast_vol_bcm', activePit, d.iso)"
+                      placeholder="—"
+                      @change="setValue('blast_vol_bcm', activePit, d.iso, $event.target.value)"
+                    />
+                  </td>
+                  <td class="num r daily-plan-total-col">
+                    <strong>{{ pitTotal('blast_vol_bcm', activePit) > 0 ? commaNumber(pitTotal('blast_vol_bcm', activePit)) : '—' }}</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="daily-plan-grandbar">
+          <span class="daily-plan-grand-label">Total · {{ pits.length }} บ่อ</span>
+          <span class="mono daily-plan-grand-val">
+            {{ grandTotal('drilling_m') > 0 ? commaNumber(grandTotal('drilling_m')) : '—' }} m ·
+            {{ grandTotal('blast_vol_bcm') > 0 ? commaNumber(grandTotal('blast_vol_bcm')) : '—' }} bcm
+          </span>
+        </div>
       </div>
 
       <div style="padding: 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--line)">
@@ -125,12 +187,19 @@ const drillLogStore = useDrillLogStore();
 const { drillLog } = storeToRefs(drillLogStore);
 
 const patternsStore = usePatternsStore();
-const { patterns } = storeToRefs(patternsStore);
+const { patterns, pitNames } = storeToRefs(patternsStore);
 
 const flash = ref('');
 
-// Map of `${metric}__${YYYY-MM-DD}` -> planned value for that single day.
+// Per-pit daily plan. valueMap keyed `${metric}__${pit}__${iso}`.
 const valueMap = ref({});
+// Pits that already have saved daily-plan rows (kept as tabs even if their pattern was later removed).
+const loadedPits = ref([]);
+// Pits added directly on this page (extra to the Blast-pattern pits), and pits hidden this session.
+const manualPits = ref([]);
+const removedPits = ref([]);
+const newPitName = ref('');
+const activePit = ref('');   // currently selected pit tab
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -168,35 +237,123 @@ function commaNumber(value) {
   return Number.isFinite(parsed) ? parsed.toLocaleString('en-US') : '';
 }
 
-function valueKey(metric, iso) {
-  return `${metric}__${iso}`;
+function pitKey(pit) {
+  return String(pit ?? '').trim();
 }
 
-function getValue(metric, iso) {
-  const v = valueMap.value[valueKey(metric, iso)];
+function parseCell(value) {
+  const parsed = Number(String(value || '').replace(/,/g, ''));
+  return Number.isFinite(parsed) ? Math.max(0, +parsed.toFixed(1)) : 0;
+}
+
+function valueKey(metric, pit, iso) {
+  return `${metric}__${pitKey(pit)}__${iso}`;
+}
+
+function pitLabel(pit) {
+  return pitKey(pit) || '(ไม่ระบุบ่อ)';
+}
+
+function mergePits(sources) {
+  const out = [];
+  for (const src of sources) {
+    for (const p of src || []) {
+      const k = pitKey(p);
+      if (k && !out.includes(k)) out.push(k);
+    }
+  }
+  return out;
+}
+
+// Pit tabs come from this week's Blast patterns, plus any pit that already has saved
+// daily-plan data, plus pits added directly on this page — minus any hidden this session.
+const pits = computed(() => {
+  const merged = mergePits([pitNames.value, loadedPits.value, manualPits.value]);
+  return removedPits.value.length ? merged.filter((p) => !removedPits.value.includes(p)) : merged;
+});
+
+// Pattern pits are defined on the Patterns page, so they are not removable here.
+function isPatternPit(pit) {
+  return pitNames.value.includes(pitKey(pit));
+}
+
+function addPit() {
+  const name = pitKey(newPitName.value);
+  newPitName.value = '';
+  if (!name) return;
+  removedPits.value = removedPits.value.filter((p) => p !== name);
+  if (!manualPits.value.includes(name)) manualPits.value.push(name);
+  activePit.value = name;
+}
+
+function removePit(pit) {
+  if (isPatternPit(pit)) return;
+  const idx = pits.value.indexOf(pit);
+  manualPits.value = manualPits.value.filter((p) => p !== pit);
+  if (!removedPits.value.includes(pit)) removedPits.value.push(pit);
+  for (const d of weekDays.value) {
+    delete valueMap.value[valueKey('drilling_m', pit, d.iso)];
+    delete valueMap.value[valueKey('blast_vol_bcm', pit, d.iso)];
+  }
+  if (activePit.value === pit) {
+    activePit.value = pits.value[Math.min(idx, pits.value.length - 1)] || '';
+  }
+}
+
+function getValue(metric, pit, iso) {
+  const v = valueMap.value[valueKey(metric, pit, iso)];
   return Number(v) > 0 ? commaNumber(v) : '';
 }
 
-function setValue(metric, iso, value) {
-  const parsed = Number(String(value || '').replace(/,/g, ''));
-  valueMap.value[valueKey(metric, iso)] = Number.isFinite(parsed) ? Math.max(0, +parsed.toFixed(1)) : 0;
+function setValue(metric, pit, iso, value) {
+  valueMap.value[valueKey(metric, pit, iso)] = parseCell(value);
 }
 
-function rowTotal(metric) {
+// Days with any plan value for a pit — shown as the tab count badge.
+function pitDayCount(pit) {
+  return weekDays.value.reduce((n, d) => {
+    const drill = Number(valueMap.value[valueKey('drilling_m', pit, d.iso)]) || 0;
+    const blast = Number(valueMap.value[valueKey('blast_vol_bcm', pit, d.iso)]) || 0;
+    return n + (drill > 0 || blast > 0 ? 1 : 0);
+  }, 0);
+}
+
+// Sum one pit's values for a metric across the week.
+function pitTotal(metric, pit) {
   return +weekDays.value
-    .reduce((sum, d) => sum + (Number(valueMap.value[valueKey(metric, d.iso)]) || 0), 0)
+    .reduce((sum, d) => sum + (Number(valueMap.value[valueKey(metric, pit, d.iso)]) || 0), 0)
     .toFixed(1);
 }
+
+// Sum a metric across every pit (grand total).
+function grandTotal(metric) {
+  return +pits.value.reduce((sum, pit) => sum + pitTotal(metric, pit), 0).toFixed(1);
+}
+
+// Sum one metric across all pits for a single day (for the charts).
+function dayTotal(metric, iso) {
+  return +pits.value
+    .reduce((sum, pit) => sum + (Number(valueMap.value[valueKey(metric, pit, iso)]) || 0), 0)
+    .toFixed(1);
+}
+
+// Keep the active tab valid as pits (patterns) load/change.
+watch(
+  pits,
+  (list) => {
+    if (!activePit.value || !list.includes(activePit.value)) {
+      activePit.value = list[0] || '';
+    }
+  },
+  { immediate: true },
+);
 
 // ── chart data ────────────────────────────────────────────────────────────
 const chartLabels = computed(() => weekDays.value.map((d) => `${d.dow}\n${d.dm}`));
 
-const planDrill = computed(() =>
-  weekDays.value.map((d) => Number(valueMap.value[valueKey('drilling_m', d.iso)]) || 0),
-);
-const planBlast = computed(() =>
-  weekDays.value.map((d) => Number(valueMap.value[valueKey('blast_vol_bcm', d.iso)]) || 0),
-);
+// Charts plot the daily plan totalled across all pits.
+const planDrill = computed(() => weekDays.value.map((d) => dayTotal('drilling_m', d.iso)));
+const planBlast = computed(() => weekDays.value.map((d) => dayTotal('blast_vol_bcm', d.iso)));
 
 const actualDrillByDay = computed(() => {
   const map = {};
@@ -223,13 +380,17 @@ const actualBlastByDay = computed(() => {
 
 function populateValueMap() {
   const m = {};
+  const found = [];
   for (const r of targets.value) {
     const iso = isoDay(r.plan_date);
     if (!iso) continue;
-    m[valueKey('drilling_m', iso)] = Number(r.drilling_m) || 0;
-    m[valueKey('blast_vol_bcm', iso)] = Number(r.blast_vol_bcm) || 0;
+    const pit = pitKey(r.pit_name);
+    m[valueKey('drilling_m', pit, iso)] = Number(r.drilling_m) || 0;
+    m[valueKey('blast_vol_bcm', pit, iso)] = Number(r.blast_vol_bcm) || 0;
+    if (!found.includes(pit)) found.push(pit);
   }
   valueMap.value = m;
+  loadedPits.value = found.slice();
 }
 
 watch(targets, populateValueMap, { immediate: true });
@@ -239,6 +400,9 @@ watch(
   async (weekId) => {
     const id = Number(weekId);
     if (weekId == null || Number.isNaN(id)) return;
+    // Page-local pit edits don't carry across weeks.
+    manualPits.value = [];
+    removedPits.value = [];
     await Promise.all([
       dailyTargetsStore.loadByWeek(id),
       drillLogStore.loadByWeek(id),
@@ -251,12 +415,20 @@ watch(
 async function save() {
   const weekId = props.week?.week_id;
   if (weekId == null) return;
-  const rowsToSave = weekDays.value.map((d) => ({
-    week_id: weekId,
-    plan_date: d.iso,
-    drilling_m: Number(valueMap.value[valueKey('drilling_m', d.iso)]) || 0,
-    blast_vol_bcm: Number(valueMap.value[valueKey('blast_vol_bcm', d.iso)]) || 0,
-  }));
+  // Include pits that were loaded but since removed so saveMany deletes their (now-empty) rows.
+  const savePits = Array.from(new Set([...pits.value, ...loadedPits.value].map(pitKey)));
+  const rowsToSave = [];
+  for (const pit of savePits) {
+    for (const d of weekDays.value) {
+      rowsToSave.push({
+        week_id: weekId,
+        plan_date: d.iso,
+        pit_name: pit,
+        drilling_m: Number(valueMap.value[valueKey('drilling_m', pit, d.iso)]) || 0,
+        blast_vol_bcm: Number(valueMap.value[valueKey('blast_vol_bcm', pit, d.iso)]) || 0,
+      });
+    }
+  }
   const { error } = await dailyTargetsStore.saveMany(rowsToSave, weekId);
   if (error) {
     const detail = [error.message, error.details, error.hint, error.code].filter(Boolean).join(' | ');
@@ -308,19 +480,115 @@ onUnmounted(() => clearTimeout(flashTimer));
   background: var(--surface);
 }
 
+.daily-plan-addpit {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 0 12px;
+}
+
+.daily-plan-newpit {
+  width: 220px;
+}
+
+.daily-plan-newpit-input {
+  border: 0;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.daily-plan-addpit-hint {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.pit-tabs {
+  margin-bottom: 12px;
+}
+
+.daily-plan-empty {
+  padding: 18px 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.daily-plan-remove-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.daily-plan-remove-btn:hover {
+  color: var(--red, #c00);
+  border-color: var(--red, #c00);
+}
+
+/* Panel for the currently selected pit tab. */
+.daily-plan-pit-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.daily-plan-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.daily-plan-pit-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Horizontal layout: days across columns, metrics down rows. */
+.daily-plan-hscroll {
+  overflow-x: auto;
+}
+
+.daily-plan-h-tbl {
+  min-width: 640px;
+}
+
 .daily-plan-metric-th {
-  min-width: 230px;
+  min-width: 150px;
 }
 
 .daily-plan-metric {
   white-space: nowrap;
   font-size: 12px;
+  font-weight: 600;
   color: var(--ink);
 }
 
-.daily-plan-th {
+.daily-plan-day-th {
   white-space: nowrap;
   border-left: 1px solid var(--line);
+}
+
+.daily-plan-day-col {
+  border-left: 1px solid var(--line);
+}
+
+.daily-plan-total-th,
+.daily-plan-total-col {
+  border-left: 2px solid var(--line);
+  white-space: nowrap;
 }
 
 .daily-plan-dow {
@@ -336,17 +604,31 @@ onUnmounted(() => clearTimeout(flashTimer));
   color: var(--ink-4);
 }
 
-.daily-plan-col {
-  border-left: 1px solid var(--line);
-}
-
 .daily-plan-cell {
   width: 72px;
 }
 
-.daily-plan-total-th,
-.daily-plan-total-col {
-  border-left: 2px solid var(--line);
+.daily-plan-grandbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2, var(--accent-soft));
+}
+
+.daily-plan-grand-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.daily-plan-grand-val {
+  margin-left: auto;
   white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
 }
 </style>

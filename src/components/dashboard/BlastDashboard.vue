@@ -152,7 +152,8 @@ const planByDay = computed(() => {
   const m = {};
   for (const r of monthlyTargets.value) {
     const iso = isoDay(r.plan_date);
-    if (iso) m[iso] = Number(r.blast_vol_bcm) || 0;
+    // A date can now have multiple rows (one per pit) — accumulate.
+    if (iso) m[iso] = (m[iso] || 0) + (Number(r.blast_vol_bcm) || 0);
   }
   return m;
 });

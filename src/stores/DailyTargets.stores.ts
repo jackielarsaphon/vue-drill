@@ -18,10 +18,15 @@ function ensureLocalId(row: any) {
   return row
 }
 
+function pitKey(v: any) {
+  return String(v ?? '').trim()
+}
+
 function toDbRow(r: any) {
   return {
     week_id:       Number(r.week_id),
     plan_date:     toIsoDate(r.plan_date),
+    pit_name:      pitKey(r.pit_name),
     drilling_m:    Number(r.drilling_m) || 0,
     blast_vol_bcm: Number(r.blast_vol_bcm) || 0,
   }
@@ -159,7 +164,7 @@ export const useDailyTargetsStore = defineStore('dailyTargets', () => {
         if (toUpsert.length) {
           const { error: err } = await sb
             .from('tdl_daily_targets')
-            .upsert(toUpsert.map(toDbRow), { onConflict: 'week_id,plan_date' })
+            .upsert(toUpsert.map(toDbRow), { onConflict: 'week_id,plan_date,pit_name' })
           if (err) throw err
         }
 
@@ -171,6 +176,7 @@ export const useDailyTargetsStore = defineStore('dailyTargets', () => {
             .delete()
             .eq('week_id', id)
             .eq('plan_date', iso)
+            .eq('pit_name', pitKey(r.pit_name))
           if (err) throw err
         }
 
@@ -180,17 +186,19 @@ export const useDailyTargetsStore = defineStore('dailyTargets', () => {
         await new Promise((r) => setTimeout(r, 40))
         for (const r of toUpsert) {
           const iso = toIsoDate(r.plan_date)
+          const pit = pitKey(r.pit_name)
           const mi = DEMO_DAILY_TARGETS.findIndex(
-            (x) => Number(x.week_id) === id && toIsoDate(x.plan_date) === iso,
+            (x) => Number(x.week_id) === id && toIsoDate(x.plan_date) === iso && pitKey(x.pit_name) === pit,
           )
-          const row = ensureLocalId({ week_id: id, plan_date: iso, drilling_m: Number(r.drilling_m) || 0, blast_vol_bcm: Number(r.blast_vol_bcm) || 0 })
+          const row = ensureLocalId({ week_id: id, plan_date: iso, pit_name: pit, drilling_m: Number(r.drilling_m) || 0, blast_vol_bcm: Number(r.blast_vol_bcm) || 0 })
           if (mi >= 0) DEMO_DAILY_TARGETS[mi] = { ...DEMO_DAILY_TARGETS[mi], ...row }
           else DEMO_DAILY_TARGETS.push(row)
         }
         for (const r of toDelete) {
           const iso = toIsoDate(r.plan_date)
+          const pit = pitKey(r.pit_name)
           const mi = DEMO_DAILY_TARGETS.findIndex(
-            (x) => Number(x.week_id) === id && toIsoDate(x.plan_date) === iso,
+            (x) => Number(x.week_id) === id && toIsoDate(x.plan_date) === iso && pitKey(x.pit_name) === pit,
           )
           if (mi >= 0) DEMO_DAILY_TARGETS.splice(mi, 1)
         }

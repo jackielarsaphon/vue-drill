@@ -1,5 +1,12 @@
 ﻿<template>
   <div class="page">
+    <div class="seg entry-tabs">
+      <button type="button" :data-active="tab === 'plan' ? 'true' : undefined" @click="tab = 'plan'">Plan</button>
+      <button type="button" :data-active="tab === 'fuel' ? 'true' : undefined" @click="tab = 'fuel'">Fuel</button>
+      <button type="button" :data-active="tab === 'down-time' ? 'true' : undefined" @click="tab = 'down-time'">Down Time</button>
+    </div>
+
+    <template v-if="tab === 'plan'">
     <div class="page-head">
       <div>
         <h1 class="page-title">TDL — Drill & Blast</h1>
@@ -55,6 +62,10 @@
     />
     <StepDrillLog v-else-if="step === 3" key="step-drill" :week="week" @back="step = 2" @next="advanceTo(4)" />
     <StepBlast v-else key="step-blast" :week="week" @back="step = 3" />
+    </template>
+
+    <FuelDataView v-else-if="tab === 'fuel'" :week="week" />
+    <DownTimeView v-else-if="tab === 'down-time'" :week="week" />
   </div>
 </template>
 
@@ -69,6 +80,8 @@ import StepWeek from '../components/steps/StepWeek.vue';
 import StepPatterns from '../components/steps/StepPatterns.vue';
 import StepDrillLog from '../components/steps/StepDrillLog.vue';
 import StepBlast from '../components/steps/StepBlast.vue';
+import FuelDataView from './FuelDataPage.vue';
+import DownTimeView from './DownTimePage.vue';
 
 const props = defineProps({
   week: { type: Object, required: true },
@@ -82,6 +95,7 @@ const drillLogStore = useDrillLogStore();
 const rigsStore = useRigsStore();
 const weeksStore = useWeeksStore();
 
+const tab = ref('plan');
 const step = ref(1);
 const unlockedUpTo = ref(1);
 const importedPit = ref('');
@@ -172,6 +186,17 @@ function deleteWeek(event) {
 </script>
 
 <style scoped>
+.entry-tabs {
+  margin-bottom: 16px;
+}
+/* Fuel/Down Time pages already sit inside this page's `.page` padding+max-width,
+   so strip their own outer box styles to avoid doubled inset. */
+.page :deep(.fuel-page),
+.page :deep(.dt-page) {
+  padding: 0;
+  max-width: none;
+  margin: 0;
+}
 .step[data-disabled] {
   opacity: 0.4;
 }

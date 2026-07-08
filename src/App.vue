@@ -143,8 +143,6 @@ interface WeekObj { week_id: number; week_start: Date | string; week_end: Date |
 const NAV = [
   { id: 'data-entry', label: 'Data Entry', roles: ['admin'], tag: 'admin' },
   { id: 'plan-daily', label: 'Plan Daily', roles: ['admin'], tag: '' },
-  { id: 'fuel-data', label: 'Fuel Data', roles: ['admin'], tag: '' },
-  { id: 'down-time', label: 'Down Time', roles: ['admin'], tag: '' },
   { id: 'dashboards', label: 'Dashboards', roles: ['admin', 'manager'], tag: '' },
   { id: 'daily-progress', label: 'Daily Progress', roles: ['admin', 'manager'], tag: '' },
   { id: 'plan-review', label: 'Plan Review', roles: ['admin', 'manager'], tag: '' },

@@ -65,22 +65,22 @@
       </section>
 
       <section class="entry-section">
-        <button type="button" class="entry-section-head" :aria-expanded="open.fuel" @click="open.fuel = !open.fuel">
-          <span class="ic chev" :data-open="open.fuel"><component :is="I.chevR" /></span>
-          <span>Fuel Data</span>
-        </button>
-        <div v-show="open.fuel" class="entry-section-body">
-          <FuelDataView :week="week" />
-        </div>
-      </section>
-
-      <section class="entry-section">
         <button type="button" class="entry-section-head" :aria-expanded="open.downtime" @click="open.downtime = !open.downtime">
           <span class="ic chev" :data-open="open.downtime"><component :is="I.chevR" /></span>
           <span>Down Time</span>
         </button>
         <div v-show="open.downtime" class="entry-section-body">
           <DownTimeView :week="week" />
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <button type="button" class="entry-section-head" :aria-expanded="open.fuel" @click="open.fuel = !open.fuel">
+          <span class="ic chev" :data-open="open.fuel"><component :is="I.chevR" /></span>
+          <span>Fuel Data</span>
+        </button>
+        <div v-show="open.fuel" class="entry-section-body">
+          <FuelDataView :week="week" />
         </div>
       </section>
     </template>

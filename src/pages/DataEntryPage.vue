@@ -1,12 +1,5 @@
 ﻿<template>
   <div class="page">
-    <div class="seg entry-tabs">
-      <button type="button" :data-active="tab === 'plan' ? 'true' : undefined" @click="tab = 'plan'">Plan</button>
-      <button type="button" :data-active="tab === 'fuel' ? 'true' : undefined" @click="tab = 'fuel'">Fuel</button>
-      <button type="button" :data-active="tab === 'down-time' ? 'true' : undefined" @click="tab = 'down-time'">Down Time</button>
-    </div>
-
-    <template v-if="tab === 'plan'">
     <div class="page-head">
       <div>
         <h1 class="page-title">TDL — Drill & Blast</h1>
@@ -61,11 +54,28 @@
       @back="step = 1"
     />
     <StepDrillLog v-else-if="step === 3" key="step-drill" :week="week" @back="step = 2" @next="advanceTo(4)" />
-    <StepBlast v-else key="step-blast" :week="week" @back="step = 3" />
+
+    <template v-else-if="step === 4">
+      <FuelDataView :week="week" />
+      <div class="step-nav">
+        <button type="button" class="btn" @click="step = 3">
+          <span class="ic"><component :is="I.chevL" /></span>Back to drill log
+        </button>
+        <button type="button" class="btn" @click="advanceTo(5)">Next</button>
+      </div>
     </template>
 
-    <FuelDataView v-else-if="tab === 'fuel'" :week="week" />
-    <DownTimeView v-else-if="tab === 'down-time'" :week="week" />
+    <template v-else-if="step === 5">
+      <DownTimeView :week="week" />
+      <div class="step-nav">
+        <button type="button" class="btn" @click="step = 4">
+          <span class="ic"><component :is="I.chevL" /></span>Back to fuel
+        </button>
+        <button type="button" class="btn" @click="advanceTo(6)">Next</button>
+      </div>
+    </template>
+
+    <StepBlast v-else key="step-blast" :week="week" @back="step = 5" />
   </div>
 </template>
 
@@ -95,7 +105,6 @@ const drillLogStore = useDrillLogStore();
 const rigsStore = useRigsStore();
 const weeksStore = useWeeksStore();
 
-const tab = ref('plan');
 const step = ref(1);
 const unlockedUpTo = ref(1);
 const importedPit = ref('');
@@ -132,7 +141,7 @@ watch(
     patternsSaved.value = hasNonCarryPatterns;
     const isHeaderLocked = Boolean(props.week?.header_locked);
     if (hasNonCarryPatterns) {
-      unlockedUpTo.value = 4;
+      unlockedUpTo.value = 6;
       step.value = 3;
     } else if (isHeaderLocked) {
       unlockedUpTo.value = 2;
@@ -158,7 +167,9 @@ const steps = computed(() => [
   { n: 1, label: 'Week header', meta: `Week ${props.week.week_id} - ${props.week.status}` },
   { n: 2, label: 'Blast patterns', meta: `${weekPatterns.value.length} patterns - ${pitCount.value} pits` },
   { n: 3, label: 'Drill log', meta: 'Daily drilling entries' },
-  { n: 4, label: 'Blast', meta: `${Math.round(blastVolume.value).toLocaleString('en-US')} bcm` },
+  { n: 4, label: 'Fuel', meta: 'Daily fuel entries' },
+  { n: 5, label: 'Down Time', meta: 'Daily downtime entries' },
+  { n: 6, label: 'Blast', meta: `${Math.round(blastVolume.value).toLocaleString('en-US')} bcm` },
 ]);
 
 async function savePlan() {
@@ -186,16 +197,20 @@ function deleteWeek(event) {
 </script>
 
 <style scoped>
-.entry-tabs {
-  margin-bottom: 16px;
-}
-/* Fuel/Down Time pages already sit inside this page's `.page` padding+max-width,
-   so strip their own outer box styles to avoid doubled inset. */
+/* Fuel/Down Time render inside this page's `.page` padding+max-width, so strip
+   their own outer box styles to avoid doubled inset. */
 .page :deep(.fuel-page),
 .page :deep(.dt-page) {
   padding: 0;
   max-width: none;
   margin: 0;
+}
+/* Back/Next footer for the Fuel and Down Time steps (those pages have no
+   built-in step nav of their own). Mirrors the drill-log step footer. */
+.step-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
 }
 .step[data-disabled] {
   opacity: 0.4;

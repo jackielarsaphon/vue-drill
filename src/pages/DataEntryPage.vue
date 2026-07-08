@@ -53,34 +53,44 @@
       @next="advanceTo(3)"
       @back="step = 1"
     />
-    <StepDrillLog v-else-if="step === 3" key="step-drill" :week="week" @back="step = 2" @next="advanceTo(4)" />
-
-    <template v-else-if="step === 4">
-      <FuelDataView :week="week" />
-      <div class="step-nav">
-        <button type="button" class="btn" @click="step = 3">
-          <span class="ic"><component :is="I.chevL" /></span>Back to drill log
+    <template v-else-if="step === 3">
+      <section class="entry-section">
+        <button type="button" class="entry-section-head" :aria-expanded="open.drill" @click="open.drill = !open.drill">
+          <span class="ic chev" :data-open="open.drill"><component :is="I.chevR" /></span>
+          <span>Drill log</span>
         </button>
-        <button type="button" class="btn" @click="advanceTo(5)">Next</button>
-      </div>
+        <div v-show="open.drill" class="entry-section-body">
+          <StepDrillLog key="step-drill" :week="week" @back="step = 2" @next="advanceTo(4)" />
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <button type="button" class="entry-section-head" :aria-expanded="open.fuel" @click="open.fuel = !open.fuel">
+          <span class="ic chev" :data-open="open.fuel"><component :is="I.chevR" /></span>
+          <span>Fuel Data</span>
+        </button>
+        <div v-show="open.fuel" class="entry-section-body">
+          <FuelDataView :week="week" />
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <button type="button" class="entry-section-head" :aria-expanded="open.downtime" @click="open.downtime = !open.downtime">
+          <span class="ic chev" :data-open="open.downtime"><component :is="I.chevR" /></span>
+          <span>Down Time</span>
+        </button>
+        <div v-show="open.downtime" class="entry-section-body">
+          <DownTimeView :week="week" />
+        </div>
+      </section>
     </template>
 
-    <template v-else-if="step === 5">
-      <DownTimeView :week="week" />
-      <div class="step-nav">
-        <button type="button" class="btn" @click="step = 4">
-          <span class="ic"><component :is="I.chevL" /></span>Back to fuel
-        </button>
-        <button type="button" class="btn" @click="advanceTo(6)">Next</button>
-      </div>
-    </template>
-
-    <StepBlast v-else key="step-blast" :week="week" @back="step = 5" />
+    <StepBlast v-else key="step-blast" :week="week" @back="step = 3" />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useDrillLogStore } from '../stores/DrillLog.stores.ts';
 import { usePatternsStore } from '../stores/Patterns.stores.ts';
 import { useRigsStore } from '../stores/Rigs.stores.ts';
@@ -107,6 +117,8 @@ const weeksStore = useWeeksStore();
 
 const step = ref(1);
 const unlockedUpTo = ref(1);
+// Collapsible sections on the Drill log step — open just the one you want to fill.
+const open = reactive({ drill: true, fuel: false, downtime: false });
 const importedPit = ref('');
 const planSaved = ref(false);
 const patternsSaved = ref(false);
@@ -141,7 +153,7 @@ watch(
     patternsSaved.value = hasNonCarryPatterns;
     const isHeaderLocked = Boolean(props.week?.header_locked);
     if (hasNonCarryPatterns) {
-      unlockedUpTo.value = 6;
+      unlockedUpTo.value = 4;
       step.value = 3;
     } else if (isHeaderLocked) {
       unlockedUpTo.value = 2;
@@ -166,10 +178,8 @@ const progressPct = computed(() => (planMetres.value > 0 ? (actualMetres.value /
 const steps = computed(() => [
   { n: 1, label: 'Week header', meta: `Week ${props.week.week_id} - ${props.week.status}` },
   { n: 2, label: 'Blast patterns', meta: `${weekPatterns.value.length} patterns - ${pitCount.value} pits` },
-  { n: 3, label: 'Drill log', meta: 'Daily drilling entries' },
-  { n: 4, label: 'Fuel', meta: 'Daily fuel entries' },
-  { n: 5, label: 'Down Time', meta: 'Daily downtime entries' },
-  { n: 6, label: 'Blast', meta: `${Math.round(blastVolume.value).toLocaleString('en-US')} bcm` },
+  { n: 3, label: 'Drill log', meta: 'Drilling, fuel & downtime' },
+  { n: 4, label: 'Blast', meta: `${Math.round(blastVolume.value).toLocaleString('en-US')} bcm` },
 ]);
 
 async function savePlan() {
@@ -205,12 +215,45 @@ function deleteWeek(event) {
   max-width: none;
   margin: 0;
 }
-/* Back/Next footer for the Fuel and Down Time steps (those pages have no
-   built-in step nav of their own). Mirrors the drill-log step footer. */
-.step-nav {
+/* Collapsible sections for the drill-log / fuel / downtime blocks so users can
+   open just the one they want to fill in. */
+.entry-section {
+  margin-top: 16px;
+}
+.entry-section-head {
+  width: 100%;
   display: flex;
-  justify-content: space-between;
-  margin-top: 18px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.entry-section-head:hover {
+  background: var(--surface-2);
+}
+.entry-section-head .chev {
+  display: inline-flex;
+  color: var(--ink-3);
+  transition: transform 0.15s ease;
+}
+.entry-section-head .chev[data-open="true"] {
+  transform: rotate(90deg);
+}
+.entry-section-body {
+  margin-top: 14px;
+}
+/* The collapse bar is the section header now — hide each embedded page's own
+   title block to avoid a duplicated heading. */
+.entry-section-body :deep(.fuel-page > .page-head),
+.entry-section-body :deep(.dt-page > .page-head) {
+  display: none;
 }
 .step[data-disabled] {
   opacity: 0.4;

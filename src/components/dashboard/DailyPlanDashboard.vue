@@ -24,25 +24,33 @@
     <Card :pad="false">
       <table class="dpd-sum">
         <tbody>
-          <tr class="dpd-sum-head"><td colspan="4">Drill meter TODAY</td></tr>
+          <tr class="dpd-sum-head"><td colspan="7">Drill meter TODAY</td></tr>
           <tr class="dpd-sum-cols">
             <th>Plan (m)</th><th>Actual (m)</th><th>Diff (m)</th><th>%Daily</th>
+            <th>อัตราการเจาะ (m/Hr)</th><th>อัตราน้ำมัน (L/Hr)</th><th>ประสิทธิภาพ (m/L)</th>
           </tr>
           <tr class="dpd-sum-data">
             <td>{{ fmtInt(summary.today.plan) }}</td>
             <td>{{ fmtDec(summary.today.actual) }}</td>
             <td :class="diffClass(summary.today.diff)">{{ fmtDiff(summary.today.diff) }}</td>
             <td>{{ fmtPct(summary.today.pct) }}</td>
+            <td>{{ fmtRate(summary.today.mPerHr) }}</td>
+            <td>{{ fmtRate(summary.today.lPerHr) }}</td>
+            <td>{{ fmtRate(summary.today.mPerL) }}</td>
           </tr>
-          <tr class="dpd-sum-head"><td colspan="4">Drill meter MONTH TO DATE</td></tr>
+          <tr class="dpd-sum-head"><td colspan="7">Drill meter MONTH TO DATE</td></tr>
           <tr class="dpd-sum-cols">
             <th>Plan (m)</th><th>Actual (m)</th><th>Diff (m)</th><th>%</th>
+            <th>อัตราการเจาะ (m/Hr)</th><th>อัตราน้ำมัน (L/Hr)</th><th>ประสิทธิภาพ (m/L)</th>
           </tr>
           <tr class="dpd-sum-data">
             <td>{{ fmtInt(summary.mtd.plan) }}</td>
             <td>{{ fmtInt(summary.mtd.actual) }}</td>
             <td :class="diffClass(summary.mtd.diff)">{{ fmtDiff(summary.mtd.diff) }}</td>
             <td>{{ fmtPct(summary.mtd.pct) }}</td>
+            <td>{{ fmtRate(summary.mtd.mPerHr) }}</td>
+            <td>{{ fmtRate(summary.mtd.lPerHr) }}</td>
+            <td>{{ fmtRate(summary.mtd.mPerL) }}</td>
           </tr>
         </tbody>
       </table>
@@ -102,6 +110,7 @@ const drillLogStore = useDrillLogStore();
 const { monthlyDrillLog } = storeToRefs(drillLogStore);
 
 const fuelLogStore = useFuelLogStore();
+const { monthlyLog: monthlyFuelLog } = storeToRefs(fuelLogStore);
 
 const captureEl = ref(null);
 const capturing = ref(false);
@@ -169,8 +178,9 @@ const endDate = computed(() => {
   return `${tableStart.value.slice(0, 7)}-${String(lastDay).padStart(2, '0')}`;
 });
 
-// Selected date range for the tables + TODAY summary.
-const periodWindow = computed(() => ({ start: tableStart.value, end: tableEnd.value, label: 'ช่วงที่เลือก' }));
+// TODAY summary = a SINGLE day = the selected end date (วันที่จบ), not the whole
+// range — so this row reads day-by-day while MONTH TO DATE stays cumulative.
+const periodWindow = computed(() => ({ start: tableEnd.value, end: tableEnd.value, label: 'วันที่เลือก' }));
 
 // Inclusive list of calendar days between two ISO dates.
 function daysBetween(from, to) {
@@ -246,8 +256,12 @@ const summary = computed(() => {
   const me = endDate.value;
   let planP = 0;
   let actualP = 0;
+  let smuP = 0;
+  let litreP = 0;
   let planMtd = 0;
   let actualMtd = 0;
+  let smuMtd = 0;
+  let litreMtd = 0;
 
   for (const r of monthlyTargets.value) {
     const iso = isoDay(r.plan_date);
@@ -260,16 +274,30 @@ const summary = computed(() => {
     const iso = isoDay(e.work_date);
     if (!iso) continue;
     const m = Number(e.total_drilling_m) || 0;
-    if (iso >= ps && iso <= pe) actualP += m;
-    if (iso >= ms && iso <= me) actualMtd += m;
+    const smu = Number(e.smu_hr) || 0;
+    if (iso >= ps && iso <= pe) { actualP += m; smuP += smu; }
+    if (iso >= ms && iso <= me) { actualMtd += m; smuMtd += smu; }
+  }
+  for (const e of monthlyFuelLog.value) {
+    const iso = isoDay(e.work_date);
+    if (!iso) continue;
+    const l = Number(e.fuel_litres) || 0;
+    if (iso >= ps && iso <= pe) litreP += l;
+    if (iso >= ms && iso <= me) litreMtd += l;
   }
 
-  const row = (plan, actual) => ({
+  const row = (plan, actual, smu, litre) => ({
     plan, actual,
     diff: actual - plan,
     pct: plan > 0 ? actual / plan : null,
+    mPerHr: smu > 0 ? actual / smu : null,   // อัตราการเจาะเฉลี่ย
+    lPerHr: smu > 0 ? litre / smu : null,    // อัตราการใช้น้ำมันเฉลี่ย
+    mPerL:  litre > 0 ? actual / litre : null, // ประสิทธิภาพการเจาะ
   });
-  return { today: row(planP, actualP), mtd: row(planMtd, actualMtd) };
+  return {
+    today: row(planP, actualP, smuP, litreP),
+    mtd:   row(planMtd, actualMtd, smuMtd, litreMtd),
+  };
 });
 
 // ── number formatting for the summary table ─────────────────────────────────
@@ -284,6 +312,9 @@ function fmtDiff(v) {
 }
 function fmtPct(p) {
   return p == null ? '#DIV/0!' : `${Math.round(p * 100)}%`;
+}
+function fmtRate(v) {
+  return v == null ? '—' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function diffClass(v) {
   if (!v) return '';

@@ -490,7 +490,9 @@ const OPERATORS = computed(() => operatorsStore.operators);
 const pid = ref('');
 const query = ref('');
 const openPits = ref(new Set());
-const date = ref(dateInput(TODAY));
+// ค่าเริ่มต้น = วันจริง แล้วปล่อยให้ watcher บีบเข้าช่วงสัปดาห์:
+// สัปดาห์ปัจจุบัน → วันนี้, สัปดาห์ที่จบไปแล้ว → วันจบ week, สัปดาห์อนาคต → วันเริ่ม week
+const date = ref(dateInput(new Date()));
 const shift = ref('day');
 const rig = ref('HE-001');
 const operator    = ref('');

@@ -545,19 +545,27 @@ function parseDisplayDate(text) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// บีบวันที่ให้อยู่ในช่วงสัปดาห์ที่กำหนดเสมอ (สุดแค่ week_start – week_end)
+function clampToWeek(iso) {
+  if (!iso) return iso;
+  if (weekStartIso.value && iso < weekStartIso.value) return weekStartIso.value;
+  if (weekEndIso.value && iso > weekEndIso.value) return weekEndIso.value;
+  return iso;
+}
+
 function onWorkDateBlur() {
   const iso = parseDisplayDate(workDateText.value);
   if (iso) {
-    date.value = iso;
-    workDateText.value = toDisplayDate(iso);
+    date.value = clampToWeek(iso);
+    workDateText.value = toDisplayDate(date.value);
   } else {
     workDateText.value = toDisplayDate(date.value);
   }
 }
 
 function onNativeDate(iso) {
-  date.value = iso;
-  workDateText.value = toDisplayDate(iso);
+  date.value = clampToWeek(iso);
+  workDateText.value = toDisplayDate(date.value);
 }
 
 watch(date, (val) => { workDateText.value = toDisplayDate(val); }, { immediate: true });
@@ -587,6 +595,13 @@ const weekRangeHint = computed(() =>
     ? `สัปดาห์: ${toDisplayDate(weekStartIso.value)} – ${toDisplayDate(weekEndIso.value)}`
     : '',
 );
+
+// บีบ date ให้อยู่ในช่วงสัปดาห์เสมอ — ครอบคลุมทั้งค่าเริ่มต้น (วันนี้), การเปลี่ยนสัปดาห์,
+// และทุกครั้งที่ date หลุดออกนอกช่วง (กันช่องข้อความกับ native picker ไม่ตรงกัน)
+watch([date, weekStartIso, weekEndIso], () => {
+  if (editingId.value) return;
+  if (workDateOutOfWeek.value) date.value = clampToWeek(date.value);
+}, { immediate: true });
 
 const pat = computed(() =>
   patterns.value.find((p) => p.pattern_id === pid.value && Number(p.week_id) === weekId.value),

@@ -23,17 +23,17 @@
 
     <!-- Drill efficiency KPIs -->
     <div v-if="drillEntries.length" class="grid-4" style="margin-bottom: 12px">
-      <KPI label="Net metres drilled" :val="fnum(totalDrillNet, 0)" unit="m">
+      <KPI label="Total drill metres" :val="fnum(totalDrillNet, 0)" unit="m">
         <template #trend>{{ drillEntries.length }} drill entries this week</template>
       </KPI>
       <KPI label="m / hr" :val="avgMperHour != null ? fnum(avgMperHour, 1) : '—'" unit="m/hr">
-        <template #trend>Net metres per SMU hour</template>
+        <template #trend>Total drill metres per SMU hour</template>
       </KPI>
       <KPI label="L / hr" :val="avgLperHour != null ? fnum(avgLperHour, 1) : '—'" unit="L/hr">
         <template #trend>Fuel litres per SMU hour</template>
       </KPI>
       <KPI label="m / L" :val="avgMperLitre != null ? fnum(avgMperLitre, 2) : '—'" unit="m/L">
-        <template #trend>Net metres per litre of fuel</template>
+        <template #trend>Total drill metres per litre of fuel</template>
       </KPI>
     </div>
 
@@ -213,7 +213,7 @@ const filteredTotal = computed(() => filteredLog.value.reduce((s, e) => s + Numb
 const drillEntries = computed(() =>
   drillStore.drillLog.filter(e => Number(e.week_id) === Number(props.week?.week_id)),
 );
-const totalDrillNet = computed(() => drillEntries.value.reduce((s, e) => s + Math.max(0, Number(e.total_drilling_m || 0) - Number(e.redrill_m || 0)), 0));
+const totalDrillNet = computed(() => drillEntries.value.reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0));
 const totalDrillSmu = computed(() => drillEntries.value.reduce((s, e) => s + Number(e.smu_hr || 0), 0));
 const avgMperHour  = computed(() => totalDrillSmu.value > 0 ? totalDrillNet.value / totalDrillSmu.value : null);
 const avgLperHour  = computed(() => (totalDrillSmu.value > 0 && totalLitres.value > 0) ? totalLitres.value / totalDrillSmu.value : null);

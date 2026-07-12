@@ -152,7 +152,7 @@ const dailyDrill = computed(() => {
   for (const e of src) {
     const iso = toIso(e.work_date);
     if (!map[iso]) map[iso] = { metres: 0, smuHr: 0 };
-    map[iso].metres += Math.max(0, Number(e.total_drilling_m || 0) - Number(e.redrill_m || 0));
+    map[iso].metres += Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
     map[iso].smuHr  += Number(e.smu_hr || 0);
   }
 

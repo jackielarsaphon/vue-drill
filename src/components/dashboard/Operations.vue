@@ -7,9 +7,9 @@
         </template>
       </KPI>
       <KPI label="Total SMU hours" :val="fnum(totalSmu)" unit="h" :trend="`across ${activeRigs} active rigs`" />
-      <KPI label="Total drill metres" :val="fnum(totalNet)" unit="m">
+      <KPI label="Total drill metres" :val="fnum(totalDrill)" unit="m">
         <template #trend>
-          gross <span class="num">{{ fnum(totalGross) }}</span> m
+          net <span class="num">{{ fnum(totalNet) }}</span> m
         </template>
       </KPI>
       <KPI
@@ -60,6 +60,7 @@
               <th class="r">Net m</th>
               <th class="r">Avg / shift</th>
               <th class="r">Redrill</th>
+              <th class="r">Total drill</th>
             </tr>
           </thead>
           <tbody>
@@ -70,6 +71,7 @@
                 <td class="num r"><strong>{{ fnum(o.net) }}</strong></td>
                 <td class="num r">{{ fnum(o.avgNet) }}</td>
                 <td class="num r dim">{{ o.redrill > 0 ? fnum(o.redrill, 1) : '—' }}</td>
+                <td class="num r"><strong>{{ fnum(o.total) }}</strong></td>
               </tr>
               <tr class="tot">
                 <td>Total</td>
@@ -77,10 +79,11 @@
                 <td class="num r">{{ fnum(opsTot.net) }}</td>
                 <td class="num r">—</td>
                 <td class="num r">{{ fnum(opsTot.redrill, 1) }}</td>
+                <td class="num r">{{ fnum(opsTot.total) }}</td>
               </tr>
             </template>
             <tr v-else>
-              <td colspan="5" class="ops-empty-cell">No drill log entries for this week.</td>
+              <td colspan="6" class="ops-empty-cell">No drill log entries for this week.</td>
             </tr>
           </tbody>
         </table>
@@ -147,8 +150,9 @@ const ops = computed(() =>
   store.operatorData.map((o) => ({
     name:   o.name,
     shifts: o.shifts,
-    net:    o.m + o.redrill,
+    net:    o.m,
     redrill: o.redrill,
+    total:  o.m + o.redrill,
     avgNet: o.shifts ? Math.round((o.m + o.redrill) / o.shifts) : 0,
   })),
 );
@@ -157,13 +161,15 @@ const opsTot = computed(() => ({
   shifts:  ops.value.reduce((s, o) => s + o.shifts, 0),
   net:     ops.value.reduce((s, o) => s + o.net, 0),
   redrill: ops.value.reduce((s, o) => s + o.redrill, 0),
+  total:   ops.value.reduce((s, o) => s + o.total, 0),
 }));
 
 const shiftCount   = computed(() => opsTot.value.shifts);
 const totalRedrill = computed(() => opsTot.value.redrill);
 const totalNet     = computed(() => opsTot.value.net);
+const totalDrill   = computed(() => opsTot.value.total);
 const totalGross   = computed(() => totalNet.value + totalRedrill.value);
-const avgPerShift  = computed(() => shiftCount.value ? totalNet.value / shiftCount.value : 0);
+const avgPerShift  = computed(() => shiftCount.value ? totalDrill.value / shiftCount.value : 0);
 
 const rig        = computed(() => store.rigData);
 const totalSmu   = computed(() => rig.value.reduce((s, r) => s + r.smu, 0));

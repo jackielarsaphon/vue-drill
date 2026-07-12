@@ -371,7 +371,7 @@ const actualDrillByDay = computed(() => {
     if (Number(e.week_id) !== Number(props.week?.week_id)) continue;
     const iso = isoDay(e.work_date);
     if (!iso) continue;
-    map[iso] = (map[iso] || 0) + Number(e.total_drilling_m || 0);
+    map[iso] = (map[iso] || 0) + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
   }
   return weekDays.value.map((d) => +(map[d.iso] || 0).toFixed(1));
 });

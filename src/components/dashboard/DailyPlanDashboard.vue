@@ -220,7 +220,7 @@ const drillActualMap = computed(() => {
   for (const e of monthlyDrillLog.value) {
     const iso = isoDay(e.work_date);
     if (!iso) continue;
-    map[iso] = (map[iso] || 0) + Number(e.total_drilling_m || 0);
+    map[iso] = (map[iso] || 0) + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
   }
   return map;
 });
@@ -239,7 +239,7 @@ function rigOutput(s, e) {
     if (!iso || iso < s || iso > e) continue;
     const rig = en.rig_id || '—';
     if (!map[rig]) map[rig] = { m: 0, smu: 0 };
-    map[rig].m += Number(en.total_drilling_m || 0);
+    map[rig].m += Number(en.total_drilling_m || 0) + Number(en.redrill_m || 0);
     map[rig].smu += Number(en.smu_hr || 0);
   }
   return Object.entries(map)
@@ -273,7 +273,7 @@ const summary = computed(() => {
   for (const e of monthlyDrillLog.value) {
     const iso = isoDay(e.work_date);
     if (!iso) continue;
-    const m = Number(e.total_drilling_m) || 0;
+    const m = (Number(e.total_drilling_m) || 0) + (Number(e.redrill_m) || 0);
     const smu = Number(e.smu_hr) || 0;
     if (iso >= ps && iso <= pe) { actualP += m; smuP += smu; }
     if (iso >= ms && iso <= me) { actualMtd += m; smuMtd += smu; }

@@ -44,7 +44,7 @@ function isDone(p: any) {
 function drilledFor(patternId: string, log: any[]): number {
   return +log
     .filter(e => e.pattern_id === patternId)
-    .reduce((s, e) => s + Number(e.total_drilling_m || 0), 0)
+    .reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0)
     .toFixed(1)
 }
 
@@ -108,7 +108,7 @@ function calcBitSize(log: any[]) {
   const buckets: Record<number, number> = {}
   for (const e of log) {
     const bit = Number(e.drill_bit_size_mm || 0)
-    buckets[bit] = (buckets[bit] || 0) + Number(e.total_drilling_m || 0)
+    buckets[bit] = (buckets[bit] || 0) + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0)
   }
   return Object.entries(buckets)
     .map(([k, v]) => ({ bit: +k, m: Math.round(v) }))
@@ -135,7 +135,7 @@ function calcCumulative(patterns: any[], log: any[], week: any) {
   let cum = carried_m_total
   return days.map((day, i) => {
     if (lastActualDate && day <= lastActualDate) {
-      cum += log.filter(e => sameDay(e.work_date, day)).reduce((s, e) => s + Number(e.total_drilling_m || 0), 0)
+      cum += log.filter(e => sameDay(e.work_date, day)).reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0)
     }
     const planCum = Math.min(plan_m_total, plan_m_total * (i + 1) / days.length)
     return {

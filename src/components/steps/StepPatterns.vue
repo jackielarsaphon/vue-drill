@@ -463,7 +463,7 @@ function commaNumber(value) {
 function drilledMetres(p) {
   return drillLog.value
     .filter(e => e.pattern_id === p.pattern_id)
-    .reduce((s, e) => s + Number(e.total_drilling_m || 0), 0);
+    .reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
 }
 
 function remainingMetres(p) {

@@ -167,7 +167,7 @@ const rigData = computed(() => {
   for (const e of drillSrc) {
     const r = e.rig_id;
     if (!drillMap[r]) drillMap[r] = { metres: 0, smuHr: 0 };
-    drillMap[r].metres += Math.max(0, Number(e.total_drilling_m || 0) - Number(e.redrill_m || 0));
+    drillMap[r].metres += Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
     drillMap[r].smuHr  += Number(e.smu_hr || 0);
   }
 

@@ -173,6 +173,7 @@
               <th class="r">Bit mm</th>
               <th class="r">Redrill</th>
               <th class="r">Net m</th>
+              <th class="r">Total drill</th>
               <th class="r">SMU h</th>
             </tr>
           </thead>
@@ -189,10 +190,11 @@
               <td class="num r dim">{{ entry.drill_bit_size_mm ?? '—' }}</td>
               <td class="num r dim">{{ entry.redrill_m > 0 ? fnum(entry.redrill_m, 1) : '-' }}</td>
               <td class="num r"><strong>{{ fnum(entry.total_drilling_m, 1) }}</strong></td>
+              <td class="num r"><strong>{{ fnum((Number(entry.total_drilling_m) || 0) + (Number(entry.redrill_m) || 0), 1) }}</strong></td>
               <td class="num r">{{ fnum(entry.smu_hr, 1) }}</td>
             </tr>
             <tr v-if="!selectedDayEntries.length">
-              <td colspan="8" class="daily-empty">No drill log entries for this pattern in this date range.</td>
+              <td colspan="9" class="daily-empty">No drill log entries for this pattern in this date range.</td>
             </tr>
           </tbody>
         </table>
@@ -203,7 +205,7 @@
           <span class="ic"><component :is="I.chevL" /></span>Back to drill log
         </button>
         <div class="daily-footer-right">
-          <span class="foot-hint">Remain = effective metres - Drill log Net m</span>
+          <span class="foot-hint">Remain = effective metres - Drill log Total drill</span>
         </div>
       </div>
         </Card>
@@ -373,7 +375,7 @@ function isBeforeDay(a, b) {
 }
 
 function totalMetres(entry) {
-  return Number(entry.total_drilling_m || 0);
+  return Number(entry.total_drilling_m || 0) + Number(entry.redrill_m || 0);
 }
 
 function planMetres(pattern) {
@@ -384,7 +386,7 @@ function progressPct(pattern) {
   const plan = planMetres(pattern);
   const drilled = drillLogEntries.value
     .filter(e => Number(e.week_id) === Number(props.week?.week_id) && e.pattern_id === pattern.pattern_id)
-    .reduce((s, e) => s + Number(e.total_drilling_m || 0), 0);
+    .reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
   return plan > 0 ? Math.min(100, (drilled / plan) * 100) : 0;
 }
 
@@ -435,7 +437,7 @@ function remainInfo(pattern) {
   const plan = Number(pattern.plan_total_drilling_m || 0);
   const drilled = drillLogEntries.value
     .filter(e => Number(e.week_id) === Number(props.week?.week_id) && e.pattern_id === pattern.pattern_id)
-    .reduce((s, e) => s + Number(e.total_drilling_m || 0), 0);
+    .reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
   const diff = +(plan - drilled).toFixed(1);
   const isComplete = patternStatus(pattern) === 'complete';
 

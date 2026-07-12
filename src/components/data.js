@@ -239,7 +239,7 @@ function drillLogFor(weekId = WEEK.week_id) {
 }
 
 function drillEntryMetres(entry) {
-  return Number(entry.total_drilling_m || 0);
+  return Number(entry.total_drilling_m || 0) + Number(entry.redrill_m || 0);
 }
 
 function toDate(d) {
@@ -325,7 +325,7 @@ function pitProgress(weekId = WEEK.week_id) {
 function bitSizeDistribution(weekId = WEEK.week_id) {
   const buckets = {};
   for (const e of drillLogFor(weekId)) {
-    buckets[e.drill_bit_size_mm] = (buckets[e.drill_bit_size_mm] || 0) + Number(e.total_drilling_m || 0);
+    buckets[e.drill_bit_size_mm] = (buckets[e.drill_bit_size_mm] || 0) + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
   }
   return Object.entries(buckets).map(([k,v]) => ({ bit: +k, m: +v.toFixed(0) })).sort((a,b) => a.bit-b.bit);
 }
@@ -350,7 +350,7 @@ function cumulativeProgress(weekId = WEEK.week_id) {
   for (let i = 0; i < days.length; i++) {
     const day = days[i];
     if (lastActualDate && day <= lastActualDate) {
-      const daily = log.filter(e => sameDay(e.work_date, day)).reduce((s,e) => s + Number(e.total_drilling_m || 0), 0);
+      const daily = log.filter(e => sameDay(e.work_date, day)).reduce((s,e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
       cum += daily;
     }
     const planCum = Math.min(plan_m_total, plan_m_total * (i+1) / days.length);
@@ -386,8 +386,8 @@ function dailyShift(weekId = WEEK.week_id) {
   for (let i = 0; i < 7; i++) days.push(addDays(start, i));
   return days.map((d) => {
     const log = drillLogFor(weekId);
-    const day = log.filter((e) => sameDay(e.work_date, d) && e.shift === 'day').reduce((s, e) => s + Number(e.total_drilling_m || 0), 0);
-    const night = log.filter((e) => sameDay(e.work_date, d) && e.shift === 'night').reduce((s, e) => s + Number(e.total_drilling_m || 0), 0);
+    const day = log.filter((e) => sameDay(e.work_date, d) && e.shift === 'day').reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
+    const night = log.filter((e) => sameDay(e.work_date, d) && e.shift === 'night').reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
     return { date: d, day: +day.toFixed(0), night: +night.toFixed(0) };
   });
 }
@@ -411,7 +411,7 @@ function perRig(weekId = WEEK.week_id) {
   for (const e of drillLogFor(weekId)) {
     if (!groups[e.rig_id]) groups[e.rig_id] = { rig: e.rig_id, m: 0, smu: 0 };
     const g = groups[e.rig_id];
-    g.m += Number(e.total_drilling_m || 0);
+    g.m += Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
     g.smu += e.smu_hr;
   }
   return Object.values(groups).map(g => ({ ...g, m: +g.m.toFixed(0), smu: +g.smu.toFixed(1) })).sort((a,b) => b.m - a.m);

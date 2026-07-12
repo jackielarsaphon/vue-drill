@@ -291,7 +291,7 @@ function drilledPct(p) {
   if (plan <= 0) return 0;
   const drilled = drillLogStore.drillLog
     .filter(e => e.pattern_id === p.pattern_id && Number(e.week_id) === Number(p.week_id))
-    .reduce((s, e) => s + Number(e.total_drilling_m || 0), 0);
+    .reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
   return +Math.min(100, (drilled / plan) * 100).toFixed(1);
 }
 

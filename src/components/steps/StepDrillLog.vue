@@ -166,8 +166,9 @@
 
         <div class="form-grid">
           <Field label="Drill bit size (mm)" :hint="pat?.hole_diameter_mm ? `Auto from pattern: ${pat.hole_diameter_mm} mm` : ''"><input v-model.number="bitSize" class="mono" type="number" /></Field>
-          <Field label="Total drilling (m)" hint="Net drilling metres"><input v-model.number="totalDrilling" class="mono" type="number" step="0.1" /></Field>
+          <Field label="Drilling (m)" hint="Net drilling metres"><input v-model.number="totalDrilling" class="mono" type="number" step="0.1" /></Field>
           <Field label="Redrill (m)" hint="Excluded from net progress"><input v-model.number="redrill" class="mono" type="number" step="0.1" /></Field>
+          <Field label="Total drilling (m)" hint="Auto: Drilling + Redrill"><input :value="fnum(totalDrillingSum, 1)" class="mono" type="text" readonly tabindex="-1" /></Field>
         </div>
 
         <div class="hr" />
@@ -229,6 +230,7 @@
               <th class="r">Bit mm</th>
               <th class="r">Redrill</th>
               <th class="r">Net m</th>
+              <th class="r">Total drill</th>
               <th class="r">SMU h</th>
               <th style="width: 72px" />
             </tr>
@@ -252,6 +254,7 @@
               <td class="num r dim">{{ e.drill_bit_size_mm ?? '—' }}</td>
               <td class="num r dim">{{ e.redrill_m > 0 ? fnum(e.redrill_m, 1) : '—' }}</td>
               <td class="num r"><strong>{{ fnum(e.total_drilling_m, 1) }}</strong></td>
+              <td class="num r"><strong>{{ fnum((Number(e.total_drilling_m) || 0) + (Number(e.redrill_m) || 0), 1) }}</strong></td>
               <td class="num r">{{ fnum(e.smu_hr, 1) }}</td>
               <td class="c" style="white-space: nowrap">
                 <button type="button" class="btn" data-variant="ghost" data-size="sm" style="padding: 0 6px" @click="loadEntry(e)">
@@ -391,6 +394,7 @@
               <th class="r">Bit mm</th>
               <th class="r">Net m</th>
               <th class="r">Redrill</th>
+              <th class="r">Total drill</th>
               <th class="r">SMU start</th>
               <th class="r">SMU end</th>
               <th class="r">Drift start</th>
@@ -414,6 +418,7 @@
               <td class="r num">{{ row.drill_bit_size_mm || '—' }}</td>
               <td class="r num"><strong>{{ row.total_drilling_m }}</strong></td>
               <td class="r num dim">{{ row.redrill_m > 0 ? row.redrill_m : '—' }}</td>
+              <td class="r num"><strong>{{ fnum((Number(row.total_drilling_m) || 0) + (Number(row.redrill_m) || 0), 1) }}</strong></td>
               <td class="r num dim">{{ row.smu_start || '—' }}</td>
               <td class="r num dim">{{ row.smu_end || '—' }}</td>
               <td class="r num dim">{{ row.drifter_start || '—' }}</td>
@@ -589,6 +594,7 @@ watch(pid, (newPid) => {
   if (p?.hole_diameter_mm) bitSize.value = p.hole_diameter_mm;
 }, { immediate: true });
 
+const totalDrillingSum = computed(() => Number(totalDrilling.value || 0) + Number(redrill.value || 0));
 const smuHours = computed(() => Math.max(0, Number(smuEnd.value || 0) - Number(smuStart.value || 0)));
 const drifterHours = computed(() => Math.max(0, Number(drifterEnd.value || 0) - Number(drifterStart.value || 0)));
 const activePatterns = computed(() => {
@@ -687,7 +693,7 @@ function sameEntryDate(a, b) {
 }
 
 function totalEntry(entry) {
-  return Number(entry.total_drilling_m || 0);
+  return Number(entry.total_drilling_m || 0) + Number(entry.redrill_m || 0);
 }
 
 function drilledMetres(pattern) {

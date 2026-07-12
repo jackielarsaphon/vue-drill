@@ -110,20 +110,24 @@
         <div class="hr" />
 
         <div class="form-grid">
-          <Field label="Work date">
+          <Field label="Work date" :hint="weekRangeHint">
             <div class="dmy-wrap">
               <input
                 v-model="workDateText"
                 class="mono"
+                :data-invalid="workDateOutOfWeek ? 'true' : undefined"
                 placeholder="DD/MM/YYYY"
                 maxlength="10"
                 @blur="onWorkDateBlur"
                 @keydown.enter.prevent="onWorkDateBlur"
               />
               <span class="dmy-cal">
-                <input type="date" :value="date" class="dmy-native" @change="e => onNativeDate(e.target.value)" />
+                <input type="date" :value="date" class="dmy-native" :min="weekStartIso || undefined" :max="weekEndIso || undefined" @change="e => onNativeDate(e.target.value)" />
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               </span>
+            </div>
+            <div v-if="workDateOutOfWeek" class="date-week-warn">
+              วันที่อยู่นอกสัปดาห์ที่กำหนด — กรอกได้เฉพาะ {{ toDisplayDate(weekStartIso) }} – {{ toDisplayDate(weekEndIso) }}
             </div>
           </Field>
           <Field label="Shift">
@@ -186,10 +190,10 @@
 
         <div class="save-entry-row">
           <button type="button" class="btn" data-variant="ghost" @click="resetEntryFields(); editingId = null; saveMessage = ''">Clear</button>
-          <button v-if="editingId" type="button" class="btn" data-variant="primary" @click="saveEntry(false)">
+          <button v-if="editingId" type="button" class="btn" data-variant="primary" :disabled="workDateOutOfWeek" @click="saveEntry(false)">
             <span class="ic"><component :is="I.check" /></span>Update entry
           </button>
-          <button v-else type="button" class="btn" data-variant="primary" @click="saveEntry(false)">
+          <button v-else type="button" class="btn" data-variant="primary" :disabled="workDateOutOfWeek" @click="saveEntry(false)">
             <span class="ic"><component :is="I.check" /></span>Save entry
           </button>
         </div>
@@ -571,6 +575,19 @@ const editingId = ref(null);
 
 const weekId = computed(() => Number(props.week?.week_id));
 
+// ── week-bounds guard: ห้ามกรอกวันที่นอกสัปดาห์ที่กำหนด ──────────────────────
+const weekStartIso = computed(() => (props.week?.week_start ? dateInput(props.week.week_start) : ''));
+const weekEndIso   = computed(() => (props.week?.week_end ? dateInput(props.week.week_end) : ''));
+const workDateOutOfWeek = computed(() =>
+  !!weekStartIso.value && !!weekEndIso.value && !!date.value &&
+  (date.value < weekStartIso.value || date.value > weekEndIso.value),
+);
+const weekRangeHint = computed(() =>
+  weekStartIso.value && weekEndIso.value
+    ? `สัปดาห์: ${toDisplayDate(weekStartIso.value)} – ${toDisplayDate(weekEndIso.value)}`
+    : '',
+);
+
 const pat = computed(() =>
   patterns.value.find((p) => p.pattern_id === pid.value && Number(p.week_id) === weekId.value),
 );
@@ -753,6 +770,10 @@ function resetEntryFields() {
 
 async function saveEntry(addAnotherShift) {
   if (!pat.value) return;
+  if (workDateOutOfWeek.value) {
+    saveMessage.value = `กรอกไม่ได้: วันที่ ${toDisplayDate(date.value)} อยู่นอกสัปดาห์ที่กำหนด (${toDisplayDate(weekStartIso.value)} – ${toDisplayDate(weekEndIso.value)})`;
+    return;
+  }
   const workDate = entryDate();
   const isoDate = dateInput(workDate);
   const entry = {
@@ -1156,6 +1177,17 @@ tr[data-editing="true"] td {
   padding: 0 8px;
   height: 32px;
   color: var(--ink);
+}
+
+.dmy-wrap:has(input[data-invalid='true']) {
+  border-color: color-mix(in srgb, var(--red) 55%, transparent);
+  background: color-mix(in srgb, var(--red) 6%, var(--surface));
+}
+
+.date-week-warn {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--red);
 }
 
 .dmy-cal {

@@ -596,11 +596,11 @@ const weekRangeHint = computed(() =>
     : '',
 );
 
-// บีบ date ให้อยู่ในช่วงสัปดาห์เสมอ — ครอบคลุมทั้งค่าเริ่มต้น (วันนี้), การเปลี่ยนสัปดาห์,
-// และทุกครั้งที่ date หลุดออกนอกช่วง (กันช่องข้อความกับ native picker ไม่ตรงกัน)
+// ค่าเริ่มต้น/เปลี่ยนสัปดาห์ที่หลุดนอกช่วง → เริ่มที่ "วันแรกของสัปดาห์" (ให้เลือกไล่ไป 4→10 ได้)
+// ส่วนการพิมพ์/เลือกเกินขอบเขต จะถูกบีบเข้าใกล้สุด (สุดที่วันจบ week) ใน onWorkDateBlur/onNativeDate
 watch([date, weekStartIso, weekEndIso], () => {
   if (editingId.value) return;
-  if (workDateOutOfWeek.value) date.value = clampToWeek(date.value);
+  if (workDateOutOfWeek.value) date.value = weekStartIso.value || clampToWeek(date.value);
 }, { immediate: true });
 
 const pat = computed(() =>

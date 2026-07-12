@@ -596,11 +596,11 @@ const weekRangeHint = computed(() =>
     : '',
 );
 
-// ค่าเริ่มต้น/เปลี่ยนสัปดาห์ที่หลุดนอกช่วง → เริ่มที่ "วันแรกของสัปดาห์" (ให้เลือกไล่ไป 4→10 ได้)
-// ส่วนการพิมพ์/เลือกเกินขอบเขต จะถูกบีบเข้าใกล้สุด (สุดที่วันจบ week) ใน onWorkDateBlur/onNativeDate
+// บีบ date ให้อยู่ในช่วงสัปดาห์เสมอ ไม่ว่าค่าจะมาจากไหน (ค่าเริ่มต้น, เปลี่ยนสัปดาห์,
+// กดแก้ไขรายการที่ลงวันที่นอก week, พิมพ์, หรือเลือกปฏิทิน) — บีบเข้าขอบที่ใกล้สุด
 watch([date, weekStartIso, weekEndIso], () => {
-  if (editingId.value) return;
-  if (workDateOutOfWeek.value) date.value = weekStartIso.value || clampToWeek(date.value);
+  const clamped = clampToWeek(date.value);
+  if (clamped !== date.value) date.value = clamped;
 }, { immediate: true });
 
 const pat = computed(() =>

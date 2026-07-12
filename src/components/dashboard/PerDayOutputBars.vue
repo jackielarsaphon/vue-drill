@@ -31,7 +31,7 @@ const chartOption = computed(() => ({
   legend: {
     top: 4,
     data: [
-      { name: 'Net metres', icon: 'rect' },
+      { name: 'Total drill', icon: 'rect' },
       { name: 'SMU hours', icon: 'line' },
     ],
     textStyle: { fontSize: 12, fontWeight: 600 },
@@ -80,7 +80,7 @@ const chartOption = computed(() => ({
   ],
   series: [
     {
-      name: 'Net metres',
+      name: 'Total drill',
       type: 'bar',
       data: metres.value,
       itemStyle: { color: props.metresColor, borderRadius: [2, 2, 0, 0] },

@@ -25,7 +25,7 @@
     </div>
 
     <div class="grid-2" style="margin-bottom: 12px">
-      <Card title="Daily metres by shift" sub="Last 7 days · net metres">
+      <Card title="Daily metres by shift" sub="Last 7 days · total drill metres">
         <template #action>
           <div class="legend">
             <span class="legend-item"><span class="legend-swatch" />Day</span>
@@ -36,10 +36,10 @@
         </template>
         <DailyShiftBars :data="shifts" />
       </Card>
-      <Card title="Per-rig output" sub="Net metres + SMU hours · last 7 days">
+      <Card title="Per-rig output" sub="Total drill + SMU hours · last 7 days">
         <template #action>
           <div class="legend">
-            <span class="legend-item"><span class="legend-swatch" />Net metres</span>
+            <span class="legend-item"><span class="legend-swatch" />Total drill</span>
             <span class="legend-item">
               <span class="legend-swatch" style="background: var(--ink-3); height: 4px; width: 14px" />SMU hours
             </span>

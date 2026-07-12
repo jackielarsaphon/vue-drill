@@ -71,7 +71,7 @@
 
     <!-- Per-rig output + rig report -->
     <div class="dpd-row">
-      <Card title="Per-rig output" sub="Net metres + SMU hours · ทั้งเดือน">
+      <Card title="Per-rig output" sub="Total drill + SMU hours · ทั้งเดือน">
         <PerDayOutputBars :data="perDayOutputMonth" />
       </Card>
 

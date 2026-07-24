@@ -146,7 +146,6 @@ function daysBetween(from, to) {
 }
 
 const monthDays = computed(() => daysBetween(startDate.value, endDate.value)); // chart
-const tableDays = computed(() => daysBetween(tableStart.value, tableEnd.value)); // table
 
 const planByDay = computed(() => {
   const m = {};
@@ -172,14 +171,11 @@ const chartLabels = computed(() => monthDays.value.map((d) => `${d.dow}\n${d.dm}
 const planBlast = computed(() => monthDays.value.map((d) => planByDay.value[d.iso] || 0));
 const actualBlastByDay = computed(() => monthDays.value.map((d) => +(actualByDay.value[d.iso] || 0).toFixed(1)));
 
-// TODAY row = the selected date range; MONTH TO DATE = the whole month.
+// TODAY row = a SINGLE day (the selected "วันที่จบ" / end date); MONTH TO DATE = the whole month.
 const summary = computed(() => {
-  let planP = 0;
-  let actualP = 0;
-  for (const d of tableDays.value) {
-    planP += planByDay.value[d.iso] || 0;
-    actualP += actualByDay.value[d.iso] || 0;
-  }
+  const todayIso = tableEnd.value || tableStart.value || '';
+  const planP = planByDay.value[todayIso] || 0;
+  const actualP = actualByDay.value[todayIso] || 0;
   let planMtd = 0;
   let actualMtd = 0;
   for (const d of monthDays.value) {

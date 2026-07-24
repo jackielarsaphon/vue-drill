@@ -90,31 +90,11 @@
         </Field>
 
         <Field label="Start Time">
-          <input
-            :value="form.start_time"
-            type="text"
-            inputmode="numeric"
-            maxlength="5"
-            placeholder="เช่น 0600"
-            class="mono"
-            @input="e => form.start_time = maskTime(e.target.value)"
-            @blur="form.start_time = toHHMM(form.start_time)"
-          />
-          <p class="note" style="margin-top:4px; color:var(--ink-3)">พิมพ์ตัวเลข เช่น 0600 → 06:00</p>
+          <TimePickerClock v-model="form.start_time" />
         </Field>
 
         <Field label="End Time">
-          <input
-            :value="form.end_time"
-            type="text"
-            inputmode="numeric"
-            maxlength="5"
-            placeholder="เช่น 0605"
-            class="mono"
-            @input="e => form.end_time = maskTime(e.target.value)"
-            @blur="form.end_time = toHHMM(form.end_time)"
-          />
-          <p class="note" style="margin-top:4px; color:var(--ink-3)">พิมพ์ตัวเลข เช่น 0605 → 06:05</p>
+          <TimePickerClock v-model="form.end_time" />
         </Field>
 
         <Field label="Sum (H:MM)">
@@ -202,13 +182,14 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { fnum, I } from '../components/format.js'
+import { I } from '../components/format.js'
 import { useDownTimeStore }   from '../stores/DownTime.stores.ts'
 import { useRigsStore }       from '../stores/Rigs.stores.ts'
 import { useReasonCodeStore } from '../stores/ReasonCode.stores.ts'
 import { useOperatorsStore }  from '../stores/Operators.stores.ts'
 import Card from '../components/Card.vue'
 import Field from '../components/Field.vue'
+import TimePickerClock from '../components/TimePickerClock.vue'
 
 const props = defineProps({
   week: { type: Object, required: true },
@@ -333,12 +314,7 @@ function computeHr(start, end) {
   return Math.round((mins / 60) * 100) / 100
 }
 
-// ระหว่างพิมพ์: อนุญาตเฉพาะตัวเลขและ ':' (จำกัด 5 ตัว) — ไม่บังคับรูปแบบจนกว่าจะออกจากช่อง
-function maskTime(v) {
-  return String(v || '').replace(/[^\d:]/g, '').slice(0, 5)
-}
-
-// เมื่อออกจากช่อง / ตอนบันทึก: แปลงตัวเลขล้วนหรือรูปแบบไม่ครบ → HH:MM (24 ชม.)
+// normalize ค่าเวลา → HH:MM (24 ชม.)
 // เช่น 600 → 06:00, 0605 → 06:05, 6:5 → 06:05
 function toHHMM(v) {
   const digits = String(v || '').replace(/\D/g, '')

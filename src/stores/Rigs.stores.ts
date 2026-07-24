@@ -58,35 +58,50 @@ export const useRigsStore = defineStore('rigs', () => {
     const id = rig_id.trim().toUpperCase()
     if (!id || rigs.value.find((r) => r.rig_id === id)) return null
     const row: Rig = { rig_id: id, contractor: contractor.trim(), is_active: true }
-    if (isSupabaseConfigured()) {
-      const sb = configuredClient()
-      const { error: err } = await sb.from('tdl_rigs').insert({ rig_id: id, contractor: contractor.trim(), is_active: true })
-      if (err) { error.value = err.message; return err.message }
-    } else {
-      ;(RIGS as any[]).push({ rig_id: id, contractor: contractor.trim() })
+    try {
+      if (isSupabaseConfigured()) {
+        const sb = configuredClient()
+        const { error: err } = await sb.from('tdl_rigs').insert({ rig_id: id, contractor: contractor.trim(), is_active: true })
+        if (err) { error.value = err.message; return err.message }
+      } else {
+        ;(RIGS as any[]).push({ rig_id: id, contractor: contractor.trim() })
+      }
+      rigs.value.push(row)
+      return null
+    } catch (err: any) {
+      error.value = err?.message ?? String(err)
+      return error.value
     }
-    rigs.value.push(row)
-    return null
   }
 
   async function update(rig_id: string, patch: Partial<Rig>) {
     const idx = rigs.value.findIndex((r) => r.rig_id === rig_id)
     if (idx < 0) return
-    if (isSupabaseConfigured()) {
-      const sb = configuredClient()
-      const { error: err } = await sb.from('tdl_rigs').update(patch).eq('rig_id', rig_id)
-      if (err) { error.value = err.message; return }
+    const previous = { ...rigs.value[idx] }
+    try {
+      if (isSupabaseConfigured()) {
+        const sb = configuredClient()
+        const { error: err } = await sb.from('tdl_rigs').update(patch).eq('rig_id', rig_id)
+        if (err) { error.value = err.message; return }
+      }
+      Object.assign(rigs.value[idx], patch)
+    } catch (err: any) {
+      rigs.value[idx] = previous
+      error.value = err?.message ?? String(err)
     }
-    Object.assign(rigs.value[idx], patch)
   }
 
   async function remove(rig_id: string) {
-    if (isSupabaseConfigured()) {
-      const sb = configuredClient()
-      const { error: err } = await sb.from('tdl_rigs').delete().eq('rig_id', rig_id)
-      if (err) { error.value = err.message; return }
+    try {
+      if (isSupabaseConfigured()) {
+        const sb = configuredClient()
+        const { error: err } = await sb.from('tdl_rigs').delete().eq('rig_id', rig_id)
+        if (err) { error.value = err.message; return }
+      }
+      rigs.value = rigs.value.filter((r) => r.rig_id !== rig_id)
+    } catch (err: any) {
+      error.value = err?.message ?? String(err)
     }
-    rigs.value = rigs.value.filter((r) => r.rig_id !== rig_id)
   }
 
   return { rigs, loading, error, rigIds, loadAll, add, update, remove }

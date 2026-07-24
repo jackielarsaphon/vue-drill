@@ -95,6 +95,7 @@ import { useDrillLogStore } from '../stores/DrillLog.stores.ts';
 import { usePatternsStore } from '../stores/Patterns.stores.ts';
 import { useRigsStore } from '../stores/Rigs.stores.ts';
 import { useWeeksStore } from '../stores/Weeks.stores.ts';
+import { useNotificationsStore } from '../stores/Notifications.stores.ts';
 import { I } from '../components/format.js';
 import StepWeek from '../components/steps/StepWeek.vue';
 import StepPatterns from '../components/steps/StepPatterns.vue';
@@ -114,6 +115,7 @@ const patternsStore = usePatternsStore();
 const drillLogStore = useDrillLogStore();
 const rigsStore = useRigsStore();
 const weeksStore = useWeeksStore();
+const notify = useNotificationsStore();
 
 const step = ref(1);
 const unlockedUpTo = ref(1);
@@ -183,13 +185,16 @@ const steps = computed(() => [
 ]);
 
 async function savePlan() {
-  await patternsStore.save();
+  const { error } = await patternsStore.save();
+  if (error) { notify.push(`Save plan failed: ${error.message || error}`, 'error'); return; }
   planSaved.value = true;
 }
 
 async function finishWeek() {
-  await patternsStore.save();
-  await weeksStore.update(props.week.week_id, { status: 'locked' });
+  const { error: saveErr } = await patternsStore.save();
+  if (saveErr) { notify.push(`Save plan failed: ${saveErr.message || saveErr}`, 'error'); return; }
+  const { error: updateErr } = await weeksStore.update(props.week.week_id, { status: 'locked' });
+  if (updateErr) { notify.push(`Lock week failed: ${updateErr.message}`, 'error'); return; }
   emit('create-week', { week: props.week });
 }
 

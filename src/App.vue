@@ -112,6 +112,7 @@ import { authenticateDemo } from './components/demo.js';
 import { getDemoOverrideRole, getSupabase, isSupabaseConfigured } from './lib/supabaseClient.js';
 import { usePatternsStore } from './stores/Patterns.stores.ts';
 import { useWeeksStore } from './stores/Weeks.stores.ts';
+import { useNotificationsStore } from './stores/Notifications.stores.ts';
 import { useTweaks } from './components/tweaks/useTweaks.js';
 import AppTopbar from './layout/AppTopbar.vue';
 import LoginView from './layout/LoginView.vue';
@@ -135,6 +136,7 @@ import OperatorView from './pages/OperatorPage.vue';
 
 const weeksStore = useWeeksStore();
 const patternsStore = usePatternsStore();
+const notify = useNotificationsStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -291,7 +293,7 @@ async function createWeekFromHeader(event: { week?: WeekObj } | null) {
 
   const week_start = toIso(addDays(new Date(sourceWeek.week_end), 1));
   const week_end   = toIso(addDays(new Date(week_start), 6));
-  const { data: created } = await weeksStore.create({
+  const { data: created, error: err } = await weeksStore.create({
     week_start,
     week_end,
     status:        'draft' as const,
@@ -299,6 +301,7 @@ async function createWeekFromHeader(event: { week?: WeekObj } | null) {
     header_locked: false,
   });
 
+  if (err) { notify.push(`สร้าง Week ผิดพลาด: ${err.message}`, 'error'); return; }
   if (created) {
     await carryPatternsToWeek(sourceWeek.week_id, created.week_id, week_end);
     weekIdx.value = weeks.value.length - 1;
@@ -333,7 +336,8 @@ async function carryPatternsToWeek(fromWeekId: number, toWeekId: number, blastDa
       risk:                'on-track' as const,
     };
   });
-  await patternsStore.upsertMany(carries);
+  const { error: err } = await patternsStore.upsertMany(carries);
+  if (err) notify.push(`Carry-over patterns ผิดพลาด: ${(err as any).message ?? err}`, 'error');
 }
 
 interface AppPattern { week_id: number; pattern_id: string; status: string; actual_blast_vol_bcm: number; [key: string]: unknown; }
@@ -348,13 +352,14 @@ async function deleteWeekFromHeader(event: { week?: WeekObj } | null) {
   const target = event?.week || weeks.value[weekIdx.value];
   const targetIndex = weeks.value.findIndex((w) => w.week_id === target.week_id);
   if (targetIndex === -1) return;
-  await weeksStore.destroy(target.week_id);
+  const { error: err } = await weeksStore.destroy(target.week_id);
+  if (err) { notify.push(`ลบ Week ผิดพลาด: ${err.message}`, 'error'); return; }
   weekIdx.value = Math.max(0, Math.min(targetIndex - 1, weeks.value.length - 1));
 }
 
 async function createFirstWeek() {
   const { week_start, week_end } = currentWeekBounds();
-  const { data: created } = await weeksStore.create({
+  const { data: created, error: err } = await weeksStore.create({
     week_start,
     week_end,
     status:        'draft' as const,
@@ -362,6 +367,7 @@ async function createFirstWeek() {
     header_locked: false,
   });
 
+  if (err) { notify.push(`สร้าง Week ผิดพลาด: ${err.message}`, 'error'); return; }
   if (created) {
     weekIdx.value = weeks.value.findIndex((w) => w.week_id === created.week_id);
     view.value = 'data-entry';

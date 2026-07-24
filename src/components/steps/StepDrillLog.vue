@@ -169,7 +169,13 @@
         <div class="hr" />
 
         <div class="form-grid">
-          <Field label="Drill bit size (mm)" :hint="pat?.hole_diameter_mm ? `Auto from pattern: ${pat.hole_diameter_mm} mm` : ''"><input v-model.number="bitSize" class="mono" type="number" /></Field>
+          <Field label="Drill bit size (mm)" :hint="pat?.hole_diameter_mm ? `Auto from pattern: ${pat.hole_diameter_mm} mm` : ''">
+            <select v-model.number="bitSize" class="mono">
+              <option :value="89">89</option>
+              <option :value="102">102</option>
+              <option :value="115">115</option>
+            </select>
+          </Field>
           <Field label="Drilling (m)" hint="Net drilling metres"><input v-model.number="totalDrilling" class="mono" type="number" step="0.1" /></Field>
           <Field label="Redrill (m)" hint="Excluded from net progress"><input v-model.number="redrill" class="mono" type="number" step="0.1" /></Field>
           <Field label="Total drilling (m)" hint="Auto: Drilling + Redrill"><input :value="fnum(totalDrillingSum, 1)" class="mono" type="text" readonly tabindex="-1" /></Field>

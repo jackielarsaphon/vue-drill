@@ -97,7 +97,7 @@
           <input v-model="form.end_time" type="time" />
         </Field>
 
-        <Field label="Sum (Hr)">
+        <Field label="Sum (H:MM)">
           <input :value="calcHr" type="text" readonly class="mono" style="background:var(--surface-2); color:var(--ink-3)" />
         </Field>
 
@@ -134,7 +134,7 @@
               <th>Operator</th>
               <th>Start</th>
               <th>End</th>
-              <th class="r">Sum (Hr)</th>
+              <th class="r">Sum (H:MM)</th>
               <th>Remark</th>
               <th style="width:72px" />
             </tr>
@@ -152,7 +152,7 @@
               <td>{{ e.operator || '—' }}</td>
               <td class="mono">{{ e.start_time || '—' }}</td>
               <td class="mono">{{ e.end_time || '—' }}</td>
-              <td class="num r"><strong>{{ fnum(e.sum_hr, 2) }}</strong></td>
+              <td class="num r"><strong>{{ fmtHrMin(e.sum_hr) }}</strong></td>
               <td class="dim" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
                 {{ e.remark || '—' }}
               </td>
@@ -169,7 +169,7 @@
           <tfoot>
             <tr>
               <td colspan="8" style="text-align:right; font-size:11px; color:var(--ink-3); font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding-right:8px">Total</td>
-              <td class="num r"><strong>{{ fnum(totalHr, 2) }}</strong></td>
+              <td class="num r"><strong>{{ fmtHrMin(totalHr) }}</strong></td>
               <td colspan="2" />
             </tr>
           </tfoot>
@@ -288,8 +288,16 @@ watch(() => operatorsStore.operators, (list) => {
 
 const calcHr = computed(() => {
   const hr = computeHr(form.value.start_time, form.value.end_time)
-  return hr > 0 ? hr.toFixed(2) : '—'
+  return hr > 0 ? fmtHrMin(hr) : '—'
 })
+
+// แปลงชั่วโมงทศนิยม (เก็บใน DB) → รูปแบบ ชม:นาที เช่น 0.083 → "0:05"
+function fmtHrMin(hr) {
+  const totalMins = Math.round((Number(hr) || 0) * 60)
+  const hh = Math.floor(totalMins / 60)
+  const mm = totalMins % 60
+  return `${hh}:${String(mm).padStart(2, '0')}`
+}
 
 const canSave = computed(() => form.value.work_date && form.value.start_time && form.value.end_time)
 
@@ -307,7 +315,12 @@ function computeHr(start, end) {
 function clearForm() {
   editingId.value = null
   saveError.value = ''
+  // ค้างวันที่ (และกะ) ที่กำลังทำอยู่ไว้ ไม่รีเซ็ตกลับเป็นวันนี้
+  const keepDate  = form.value.work_date || todayIso()
+  const keepShift = form.value.shift || 'day'
   form.value = freshForm()
+  form.value.work_date = keepDate
+  form.value.shift     = keepShift
   const first = operatorsStore.operators[0]
   if (first) { form.value.operator = first.name; opQuery.value = first.name }
   else opQuery.value = ''

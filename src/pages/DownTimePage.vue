@@ -90,11 +90,31 @@
         </Field>
 
         <Field label="Start Time">
-          <input v-model="form.start_time" type="time" />
+          <input
+            :value="form.start_time"
+            type="text"
+            inputmode="numeric"
+            maxlength="5"
+            placeholder="เช่น 0600"
+            class="mono"
+            @input="e => form.start_time = maskTime(e.target.value)"
+            @blur="form.start_time = toHHMM(form.start_time)"
+          />
+          <p class="note" style="margin-top:4px; color:var(--ink-3)">พิมพ์ตัวเลข เช่น 0600 → 06:00</p>
         </Field>
 
         <Field label="End Time">
-          <input v-model="form.end_time" type="time" />
+          <input
+            :value="form.end_time"
+            type="text"
+            inputmode="numeric"
+            maxlength="5"
+            placeholder="เช่น 0605"
+            class="mono"
+            @input="e => form.end_time = maskTime(e.target.value)"
+            @blur="form.end_time = toHHMM(form.end_time)"
+          />
+          <p class="note" style="margin-top:4px; color:var(--ink-3)">พิมพ์ตัวเลข เช่น 0605 → 06:05</p>
         </Field>
 
         <Field label="Sum (H:MM)">
@@ -304,12 +324,32 @@ const canSave = computed(() => form.value.work_date && form.value.start_time && 
 const totalHr = computed(() => store.entries.reduce((s, e) => s + Number(e.sum_hr || 0), 0))
 
 function computeHr(start, end) {
-  if (!start || !end) return 0
-  const [sh, sm] = start.split(':').map(Number)
-  const [eh, em] = end.split(':').map(Number)
+  const s = toHHMM(start), e = toHHMM(end)
+  if (!s || !e) return 0
+  const [sh, sm] = s.split(':').map(Number)
+  const [eh, em] = e.split(':').map(Number)
   let mins = (eh * 60 + em) - (sh * 60 + sm)
   if (mins < 0) mins += 24 * 60  // overnight
   return Math.round((mins / 60) * 100) / 100
+}
+
+// ระหว่างพิมพ์: อนุญาตเฉพาะตัวเลขและ ':' (จำกัด 5 ตัว) — ไม่บังคับรูปแบบจนกว่าจะออกจากช่อง
+function maskTime(v) {
+  return String(v || '').replace(/[^\d:]/g, '').slice(0, 5)
+}
+
+// เมื่อออกจากช่อง / ตอนบันทึก: แปลงตัวเลขล้วนหรือรูปแบบไม่ครบ → HH:MM (24 ชม.)
+// เช่น 600 → 06:00, 0605 → 06:05, 6:5 → 06:05
+function toHHMM(v) {
+  const digits = String(v || '').replace(/\D/g, '')
+  if (!digits) return ''
+  let hh, mm
+  if (digits.length <= 2)      { hh = digits;            mm = '00' }
+  else if (digits.length === 3){ hh = digits.slice(0, 1); mm = digits.slice(1) }
+  else                         { hh = digits.slice(0, 2); mm = digits.slice(2, 4) }
+  const h = Math.min(23, parseInt(hh, 10) || 0)
+  const m = Math.min(59, parseInt(mm, 10) || 0)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function clearForm() {
@@ -347,6 +387,8 @@ function loadEntry(e) {
 async function saveEntry() {
   saveError.value = ''
   if (!canSave.value) { saveError.value = 'กรุณากรอก Date, Start Time และ End Time'; return }
+  form.value.start_time = toHHMM(form.value.start_time)
+  form.value.end_time   = toHHMM(form.value.end_time)
   const sum_hr = computeHr(form.value.start_time, form.value.end_time)
   const payload = { ...form.value, sum_hr, week_id: props.week.week_id }
   if (editingId.value) {

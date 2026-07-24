@@ -331,15 +331,17 @@ function toHHMM(v) {
 function clearForm() {
   editingId.value = null
   saveError.value = ''
-  // ค้างวันที่ (และกะ) ที่กำลังทำอยู่ไว้ ไม่รีเซ็ตกลับเป็นวันนี้
-  const keepDate  = form.value.work_date || todayIso()
-  const keepShift = form.value.shift || 'day'
+  // คงค่า Date / Shift / Rig / Operator ที่เลือกไว้ล่าสุด จนกว่าผู้ใช้จะเปลี่ยนเอง
+  const keepDate     = form.value.work_date || todayIso()
+  const keepShift    = form.value.shift || 'day'
+  const keepAirCode  = form.value.air_code || (rigsStore.rigs[0]?.rig_id ?? '')
+  const keepOperator = form.value.operator || (operatorsStore.operators[0]?.name ?? '')
   form.value = freshForm()
   form.value.work_date = keepDate
   form.value.shift     = keepShift
-  const first = operatorsStore.operators[0]
-  if (first) { form.value.operator = first.name; opQuery.value = first.name }
-  else opQuery.value = ''
+  form.value.air_code  = keepAirCode
+  form.value.operator  = keepOperator
+  opQuery.value = keepOperator
   rcQuery.value = ''
 }
 

@@ -326,7 +326,15 @@ const byPit = computed(() => {
 // Pit tabs come from this week only. The store can still hold rows from another
 // week (e.g. the week a carryover was just read from), and those must never show
 // up here — deleting such a tab would take the other week's rows with it.
-const pitNames = computed(() => Object.keys(byPit.value).sort());
+// Built off `patterns` rather than `byPit` on purpose: `byPit` reads listRevision,
+// and the watcher below bumps listRevision, which would loop forever.
+const pitNames = computed(() =>
+  [...new Set(
+    patterns.value
+      .filter((row) => Number(row.week_id) === Number(props.week.week_id))
+      .map((row) => row.pit_name),
+  )].sort(),
+);
 
 const rows = computed(() => byPit.value[pit.value] || []);
 

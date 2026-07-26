@@ -111,6 +111,7 @@ import { addDays, fmtDate } from './components/format.js';
 import { authenticateDemo } from './components/demo.js';
 import { getDemoOverrideRole, getSupabase, isSupabaseConfigured } from './lib/supabaseClient.js';
 import { usePatternsStore } from './stores/Patterns.stores.ts';
+import { useDrillLogStore } from './stores/DrillLog.stores.ts';
 import { useWeeksStore } from './stores/Weeks.stores.ts';
 import { useTweaks } from './components/tweaks/useTweaks.js';
 import AppTopbar from './layout/AppTopbar.vue';
@@ -135,6 +136,7 @@ import OperatorView from './pages/OperatorPage.vue';
 
 const weeksStore = useWeeksStore();
 const patternsStore = usePatternsStore();
+const drillLogStore = useDrillLogStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -306,27 +308,46 @@ async function createWeekFromHeader(event: { week?: WeekObj } | null) {
 }
 
 async function carryPatternsToWeek(fromWeekId: number, toWeekId: number, blastDate: string) {
+  // The carry reads the source week, so make sure that is what the stores hold —
+  // creating a week from another view can leave a different week loaded.
+  if (Number(patternsStore.loadedWeekId) !== Number(fromWeekId)) {
+    await patternsStore.loadByWeek(fromWeekId);
+  }
+  if (Number(drillLogStore.loadedWeekId) !== Number(fromWeekId)) {
+    await drillLogStore.loadByWeek(fromWeekId);
+  }
+
+  // Metres drilled live in the drill log — `actual_drilling_m` on the pattern row
+  // is never written back, so read progress the way the dashboards do.
+  const drilledByPattern = new Map<string, number>();
+  for (const e of drillLogStore.drillLog) {
+    if (Number(e.week_id) !== Number(fromWeekId)) continue;
+    const m = Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0);
+    drilledByPattern.set(e.pattern_id, (drilledByPattern.get(e.pattern_id) ?? 0) + m);
+  }
+
   const open = patternsStore.patterns
-    .filter((p) => p.week_id === fromWeekId)
-    .filter((p) => !patternDone(p))
-    .filter((p) => Math.max(0, Number(p.effective_m || 0) - Number(p.actual_drilling_m || 0)) > 0);
+    .filter((p) => Number(p.week_id) === Number(fromWeekId))
+    // Anything not blasted yet has to follow into the new week — including patterns
+    // already drilled to 100% that are still waiting for their blast.
+    .filter((p) => !patternBlasted(p) || carryPlan(p, drilledByPattern).remaining > 0);
 
   if (!open.length) return;
 
   const carries = open.map((src) => {
-    const remaining = Math.max(0, Number(src.effective_m || 0) - Number(src.actual_drilling_m || 0));
-    const prevPct   = Number(src.drilling_pct || 0);
+    const { planM, doneM, remaining } = carryPlan(src, drilledByPattern);
     const { carried_progress_pct: _cp, id: _id, created_at: _ca, updated_at: _ua, ...rest } = src as any;
     void _cp; void _id; void _ca; void _ua;
     return {
       ...rest,
       week_id:             toWeekId,
       pit_priority:        0,
-      carried_drilling_m:  Number(src.plan_total_drilling_m || 0) - remaining,
+      carried_drilling_m:  doneM,
       effective_m:         remaining,
       actual_drilling_m:   0,
-      drilling_pct:        prevPct,
+      drilling_pct:        planM > 0 ? +Math.min(100, (doneM / planM) * 100).toFixed(1) : 0,
       planned_blast_date:  blastDate,
+      actual_blast_date:   null,
       actual_blast_vol_bcm: 0,
       blast_td_updated:    false,
       status:              'pending' as const,
@@ -336,11 +357,27 @@ async function carryPatternsToWeek(fromWeekId: number, toWeekId: number, blastDa
   await patternsStore.upsertMany(carries);
 }
 
+// Total plan vs. metres already drilled (previous weeks + this week's log).
+function carryPlan(pattern: AppPattern, drilledByPattern: Map<string, number>) {
+  const planM   = Number(pattern.plan_total_drilling_m || pattern.effective_m || 0);
+  const drilled = drilledByPattern.get(pattern.pattern_id) ?? Number(pattern.actual_drilling_m || 0);
+  const doneM   = +Math.min(planM, Number(pattern.carried_drilling_m || 0) + drilled).toFixed(1);
+  return { planM, doneM, remaining: +Math.max(0, planM - doneM).toFixed(1) };
+}
+
 interface AppPattern { week_id: number; pattern_id: string; status: string; actual_blast_vol_bcm: number; [key: string]: unknown; }
 
 function patternDone(pattern: AppPattern) {
   const status = String(pattern.status || '').toLowerCase();
   return status === 'done' || status === 'complete' || status === 'blasting' || Number(pattern.actual_blast_vol_bcm || 0) > 1;
+}
+
+// Blasted *successfully* — i.e. the TD blast volume is recorded. `blasting` only
+// means the blast is queued, so those patterns still count as unfinished.
+function patternBlasted(pattern: AppPattern) {
+  const blastRecorded = Boolean(pattern.blast_td_updated) || Number(pattern.actual_blast_vol_bcm || 0) > 1;
+  if (String(pattern.status || '').toLowerCase() === 'blasting') return blastRecorded;
+  return blastRecorded || patternDone(pattern);
 }
 
 async function deleteWeekFromHeader(event: { week?: WeekObj } | null) {

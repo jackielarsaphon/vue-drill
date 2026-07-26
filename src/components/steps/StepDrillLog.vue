@@ -749,8 +749,11 @@ function remainingMetres(pattern) {
 }
 
 function progressPct(pattern) {
-  const plan = Number(pattern.effective_m || 0);
-  const drilled = drilledMetres(pattern);
+  // Carried patterns keep their metres from earlier weeks in carried_drilling_m,
+  // so count those on both sides — otherwise a fully drilled carry reads 0%.
+  const carried = Number(pattern.carried_drilling_m || 0);
+  const plan = carried + Number(pattern.effective_m || 0);
+  const drilled = carried + drilledMetres(pattern);
   return plan > 0 ? +(Math.min(100, (drilled / plan) * 100)).toFixed(1) : 0;
 }
 

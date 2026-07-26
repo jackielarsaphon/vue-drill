@@ -287,12 +287,15 @@ function barStatus(p) {
 }
 
 function drilledPct(p) {
-  const plan = Number(p.effective_m || 0);
+  // Include metres carried in from earlier weeks so a pattern that was drilled out
+  // last week and carried here only for its blast still shows 100%.
+  const carried = Number(p.carried_drilling_m || 0);
+  const plan = carried + Number(p.effective_m || 0);
   if (plan <= 0) return 0;
   const drilled = drillLogStore.drillLog
     .filter(e => e.pattern_id === p.pattern_id && Number(e.week_id) === Number(p.week_id))
     .reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0);
-  return +Math.min(100, (drilled / plan) * 100).toFixed(1);
+  return +Math.min(100, ((carried + drilled) / plan) * 100).toFixed(1);
 }
 
 function updateDate(row, value) {

@@ -277,7 +277,7 @@ const props = defineProps({
 const emit = defineEmits(['next', 'back', 'plan-saved']);
 
 const patternsStore = usePatternsStore();
-const { patterns, pitNames } = storeToRefs(patternsStore);
+const { patterns } = storeToRefs(patternsStore);
 
 const drillLogStore = useDrillLogStore();
 const { drillLog } = storeToRefs(drillLogStore);
@@ -322,6 +322,11 @@ const byPit = computed(() => {
   for (const key of Object.keys(out)) out[key].sort(patternPrioritySort);
   return out;
 });
+
+// Pit tabs come from this week only. The store can still hold rows from another
+// week (e.g. the week a carryover was just read from), and those must never show
+// up here — deleting such a tab would take the other week's rows with it.
+const pitNames = computed(() => Object.keys(byPit.value).sort());
 
 const rows = computed(() => byPit.value[pit.value] || []);
 
@@ -375,7 +380,8 @@ function nextSeqFromIds() {
 }
 
 function nextPitPriority(pitName) {
-  const list = patterns.value.filter((p) => p.pit_name === pitName);
+  // This week's rows only — another week's priorities say nothing about this one.
+  const list = byPit.value[pitName] || [];
   if (!list.length) return 1;
   return Math.max(...list.map((p) => p.pit_priority)) + 1;
 }
@@ -716,14 +722,22 @@ function addPit() {
   addPattern();
 }
 
-function deletePit() {
+async function deletePit() {
   if (props.locked && !isPitAllUnsaved.value) return;
   const pitName = pit.value;
   const index = pitNames.value.indexOf(pitName);
   if (index === -1) return;
 
-  for (let i = patterns.value.length - 1; i >= 0; i -= 1) {
-    if (patterns.value[i].pit_name === pitName) patterns.value.splice(i, 1);
+  // Snapshot this week's rows only — dropping every row with a matching pit name
+  // would delete the same pit out of the previous week too.
+  const doomed = (byPit.value[pitName] || []).slice();
+  for (const row of doomed) {
+    const { error } = await removePatternRow(row);
+    if (error) {
+      flash.value = `Delete failed: ${error.message ?? error}`;
+      clearFlash(6000);
+      return;
+    }
   }
 
   pit.value = pitNames.value.length ? pitNames.value[Math.min(index, pitNames.value.length - 1)] : '';
@@ -732,16 +746,29 @@ function deletePit() {
   clearFlash(5000);
 }
 
-function deletePattern(row) {
+async function deletePattern(row) {
   if (props.locked && !row._unsaved) return;
-  const index = patterns.value.findIndex((p) => p === row);
-  if (index === -1) return;
-
   const patternId = row.pattern_id;
-  patterns.value.splice(index, 1);
+
+  const { error } = await removePatternRow(row);
+  if (error) {
+    flash.value = `Delete failed: ${error.message ?? error}`;
+    clearFlash(6000);
+    return;
+  }
+
   touch();
   flash.value = `Deleted ${patternId}`;
   clearFlash(4000);
+}
+
+// A saved row has to go from the database as well — `save()` only upserts what is
+// still in the list, so a row dropped in memory came straight back on next load.
+async function removePatternRow(row) {
+  if (row.id && !row._unsaved) return patternsStore.deleteById(row.id);
+  const index = patterns.value.findIndex((p) => p === row);
+  if (index >= 0) patterns.value.splice(index, 1);
+  return { error: null };
 }
 
 async function saveAndNext() {

@@ -209,6 +209,7 @@ onMounted(async () => {
     if (raw) {
       applyProfile(JSON.parse(raw));
       await weeksStore.loadAll();
+      selectLatestWeek();
       return;
     }
   } catch {
@@ -249,6 +250,7 @@ async function login() {
     applyProfile(appUser);
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(appUser));
     await weeksStore.loadAll();
+    selectLatestWeek();
     return;
   }
 
@@ -261,6 +263,7 @@ async function login() {
   applyProfile({ ...user, userId: '' });
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
   await weeksStore.loadAll();
+  selectLatestWeek();
 }
 
 async function logout() {
@@ -285,6 +288,17 @@ function onSelfRoleChanged(newRole: string) {
   if (!visibleNav.value.find((n) => n.id === view.value)) {
     view.value = visibleNav.value[0]?.id ?? 'dashboards';
   }
+}
+
+// Weeks load oldest-first, so without this the app opens on the very first week.
+// Pick the highest week_id rather than the last index — the order is not enforced.
+function selectLatestWeek() {
+  if (!weeks.value.length) return;
+  let latest = 0;
+  for (let i = 1; i < weeks.value.length; i += 1) {
+    if (Number(weeks.value[i].week_id) > Number(weeks.value[latest].week_id)) latest = i;
+  }
+  weekIdx.value = latest;
 }
 
 async function createWeekFromHeader(event: { week?: WeekObj } | null) {

@@ -34,6 +34,18 @@
               <td :class="diffClass(summary.today.diff)">{{ fmtDiff(summary.today.diff) }}</td>
               <td>{{ fmtPct(summary.today.pct) }}</td>
             </tr>
+            <tr class="bd-sum-head">
+              <td colspan="4">Blast volume WEEK<span v-if="weekLabel"> ({{ weekLabel }})</span></td>
+            </tr>
+            <tr class="bd-sum-cols">
+              <th>Plan (bcm)</th><th>Actual (bcm)</th><th>Diff (bcm)</th><th>%Weekly</th>
+            </tr>
+            <tr class="bd-sum-data">
+              <td>{{ fmtInt(summary.week.plan) }}</td>
+              <td>{{ fmtInt(summary.week.actual) }}</td>
+              <td :class="diffClass(summary.week.diff)">{{ fmtDiff(summary.week.diff) }}</td>
+              <td>{{ fmtPct(summary.week.pct) }}</td>
+            </tr>
             <tr class="bd-sum-head"><td colspan="4">Blast volume MONTH TO DATE</td></tr>
             <tr class="bd-sum-cols">
               <th>Plan (bcm)</th><th>Actual (bcm)</th><th>Diff (bcm)</th><th>%</th>
@@ -147,6 +159,36 @@ function daysBetween(from, to) {
 
 const monthDays = computed(() => daysBetween(startDate.value, endDate.value)); // chart
 
+// The "TODAY" day = the selected end date (fallback: start date).
+const todayIso = computed(() => tableEnd.value || tableStart.value || '');
+
+// WEEK row = the 7-day week that CONTAINS the TODAY day, aligned to the app's
+// week convention (same weekday as the active week_start; Monday if unknown) —
+// so it matches the weeks used everywhere else, not a fixed Mon–Sun assumption.
+const weekAnchorDow = computed(() => {
+  const s = weekStartStr.value;
+  if (!s) return 1; // Monday
+  const d = new Date(`${s}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? 1 : d.getDay();
+});
+
+const weekRange = computed(() => {
+  const iso = todayIso.value;
+  if (!iso) return { start: '', end: '' };
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return { start: '', end: '' };
+  d.setDate(d.getDate() - ((d.getDay() - weekAnchorDow.value + 7) % 7));
+  const start = isoDay(d);
+  d.setDate(d.getDate() + 6);
+  return { start, end: isoDay(d) };
+});
+
+const weekDays = computed(() => daysBetween(weekRange.value.start, weekRange.value.end));
+const weekLabel = computed(() => {
+  const days = weekDays.value;
+  return days.length ? `${days[0].dm} – ${days[days.length - 1].dm}` : '';
+});
+
 const planByDay = computed(() => {
   const m = {};
   for (const r of monthlyTargets.value) {
@@ -171,23 +213,33 @@ const chartLabels = computed(() => monthDays.value.map((d) => `${d.dow}\n${d.dm}
 const planBlast = computed(() => monthDays.value.map((d) => planByDay.value[d.iso] || 0));
 const actualBlastByDay = computed(() => monthDays.value.map((d) => +(actualByDay.value[d.iso] || 0).toFixed(1)));
 
-// TODAY row = a SINGLE day (the selected "วันที่จบ" / end date); MONTH TO DATE = the whole month.
+// TODAY row = a SINGLE day (the selected "วันที่จบ" / end date); WEEK = the week
+// containing that day; MONTH TO DATE = the whole month.
 const summary = computed(() => {
-  const todayIso = tableEnd.value || tableStart.value || '';
-  const planP = planByDay.value[todayIso] || 0;
-  const actualP = actualByDay.value[todayIso] || 0;
-  let planMtd = 0;
-  let actualMtd = 0;
-  for (const d of monthDays.value) {
-    planMtd += planByDay.value[d.iso] || 0;
-    actualMtd += actualByDay.value[d.iso] || 0;
-  }
+  const iso = todayIso.value;
+  const planP = planByDay.value[iso] || 0;
+  const actualP = actualByDay.value[iso] || 0;
+  const total = (days) => {
+    let plan = 0;
+    let actual = 0;
+    for (const d of days) {
+      plan += planByDay.value[d.iso] || 0;
+      actual += actualByDay.value[d.iso] || 0;
+    }
+    return [plan, actual];
+  };
+  const [planWeek, actualWeek] = total(weekDays.value);
+  const [planMtd, actualMtd] = total(monthDays.value);
   const row = (plan, actual) => ({
     plan, actual,
     diff: actual - plan,
     pct: plan > 0 ? actual / plan : null,
   });
-  return { today: row(planP, actualP), mtd: row(planMtd, actualMtd) };
+  return {
+    today: row(planP, actualP),
+    week: row(planWeek, actualWeek),
+    mtd: row(planMtd, actualMtd),
+  };
 });
 
 function fmtInt(v) { return Number(Math.round(v || 0)).toLocaleString('en-US'); }
@@ -217,12 +269,15 @@ async function downloadPage() {
 }
 
 watch(
-  () => `${startDate.value}..${endDate.value}|${tableStart.value}..${tableEnd.value}`,
+  () => `${startDate.value}..${endDate.value}|${tableStart.value}..${tableEnd.value}|${weekRange.value.start}..${weekRange.value.end}`,
   async () => {
     const s = startDate.value;
     const e = endDate.value;
     if (!s || !e || s > e) return;
-    const bounds = [s, e, tableStart.value, tableEnd.value].filter(Boolean).sort();
+    // The week can straddle the month edge, so it widens the fetch range too.
+    const bounds = [s, e, tableStart.value, tableEnd.value, weekRange.value.start, weekRange.value.end]
+      .filter(Boolean)
+      .sort();
     const ls = bounds[0];
     const le = bounds[bounds.length - 1];
     await Promise.all([

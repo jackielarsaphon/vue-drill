@@ -63,6 +63,8 @@ const chartOption = computed(() => ({
   yAxis: {
     type: 'value',
     name: props.yName,
+    // Leave enough headroom for value labels above the tallest series point.
+    boundaryGap: [0, '12%'],
     nameTextStyle: { fontSize: 10, color: '#aaa' },
     axisLabel: { fontSize: 10, color: '#555', formatter: (v) => Number(v).toLocaleString('en-US') },
     axisLine: { show: false },
@@ -77,7 +79,12 @@ const chartOption = computed(() => ({
       itemStyle: { color: props.barColor, borderRadius: [2, 2, 0, 0] },
       barMaxWidth: 34,
       label: {
-        show: true, position: 'inside', rotate: 90, fontSize: 9, fontWeight: 600, color: '#fff',
+        show: true,
+        position: 'top',
+        distance: 5,
+        fontSize: 10,
+        fontWeight: 700,
+        color: props.barColor,
         formatter: ({ value: v }) => (v > 0 ? fmtVal(v) : ''),
       },
       z: 1,

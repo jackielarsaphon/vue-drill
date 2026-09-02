@@ -75,7 +75,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/vue-drill/'),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 

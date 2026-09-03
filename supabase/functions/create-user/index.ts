@@ -1,8 +1,10 @@
 // @ts-nocheck  — Deno runtime types; ignore TS errors in VS Code
 import { createClient } from '@supabase/supabase-js'
 
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || ''
+
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN || 'null',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 

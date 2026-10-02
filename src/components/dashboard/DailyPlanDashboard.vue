@@ -153,17 +153,27 @@ const tableStart = ref(''); // 'YYYY-MM-DD'
 const tableEnd = ref('');   // 'YYYY-MM-DD'
 
 const weekStartStr = computed(() => isoDay(props.week?.week_start));
+const weekEndStr = computed(() => isoDay(props.week?.week_end));
 
+// Anchor day of the active week: today while the week is running, otherwise its
+// nearest edge (past week → week_end, future week → week_start). A week that
+// straddles two months (e.g. 26/9 → 2/10) lands on the month of that day.
+function weekAnchorDay(ws, we) {
+  const today = isoDay(new Date());
+  if (ws && today < ws) return ws;
+  if (we && today > we) return we;
+  return today;
+}
+
+// Re-sync whenever the week changes in the system: 1st of the anchor's month →
+// the anchor day (so TODAY reads the anchor day, MONTH TO DATE its month).
 watch(
-  weekStartStr,
-  (d) => {
-    if (!d || tableStart.value || tableEnd.value) return;
-    const [y, m] = d.split('-').map(Number);
-    if (!y || !m) return;
-    const mm = String(m).padStart(2, '0');
-    const lastDay = new Date(y, m, 0).getDate();
-    tableStart.value = `${y}-${mm}-01`;
-    tableEnd.value = `${y}-${mm}-${String(lastDay).padStart(2, '0')}`;
+  () => `${weekStartStr.value}..${weekEndStr.value}`,
+  () => {
+    if (!weekStartStr.value && !weekEndStr.value) return;
+    const d = weekAnchorDay(weekStartStr.value, weekEndStr.value);
+    tableStart.value = `${d.slice(0, 7)}-01`;
+    tableEnd.value = d;
   },
   { immediate: true },
 );

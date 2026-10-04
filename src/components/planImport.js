@@ -16,9 +16,17 @@ const NUM_RE = /\b[0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?\b/g;
 
 export { PATTERN_RE, PATTERN_TYPES };
 
+// Thai Drill sections are titled either "Thai Drill" or by the short TD label
+// used on LXML plans, e.g. "( TD-MVDC )".
+const TD_SECTION_RE = /\bTD\s*[-–]\s*[A-Z]{2,}/i;
+
+function hasTdSectionLabel(text) {
+  return TD_SECTION_RE.test(String(text || ''));
+}
+
 function isThaiDrillSection(text) {
   const t = String(text || '').toLowerCase();
-  return t.includes('thai') && t.includes('drill');
+  return (t.includes('thai') && t.includes('drill')) || hasTdSectionLabel(text);
 }
 
 function toNumber(value, fallback = 0) {
@@ -955,7 +963,9 @@ export async function extractPlanRowsFromExcel(file, existingRows, week = WEEK) 
 
   // Phase 1 — extract patterns from Thai Drill sheets
   for (const { sheetName, sheetRows } of allSheets) {
-    if (!isThaiDrillSection(sheetName)) {
+    // The TD label may sit in the sheet's title rows rather than its name.
+    const titleText = sheetRows.slice(0, 6).map(rowLine).join(' ');
+    if (!isThaiDrillSection(sheetName) && !hasTdSectionLabel(titleText)) {
       console.log('[import] skip sheet', JSON.stringify(sheetName), '— not Thai drill');
       skippedSheets += 1;
       continue;

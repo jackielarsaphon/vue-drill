@@ -29,7 +29,6 @@
                 <th>User</th>
                 <th>Username</th>
                 <th>Role</th>
-                <th>Password</th>
                 <th>Created</th>
                 <th>Updated</th>
                 <th class="actions-col"></th>
@@ -45,15 +44,6 @@
                 </td>
                 <td class="mono">@{{ u.username || '-' }}</td>
                 <td><span class="u-role-badge" :data-role="u.role">{{ u.role || 'viewer' }}</span></td>
-                <td>
-                  <div v-if="u.password" class="pw-cell">
-                    <span class="mono">{{ shownPw.has(u.id) ? u.password : '••••••' }}</span>
-                    <button type="button" class="pw-eye" @click="togglePw(u.id)" :title="shownPw.has(u.id) ? 'ซ่อน' : 'แสดง'">
-                      <component :is="shownPw.has(u.id) ? I.eyeOff : I.eye" />
-                    </button>
-                  </div>
-                  <span v-else class="mono">-</span>
-                </td>
                 <td>{{ formatDateTime(u.created_at) }}</td>
                 <td>{{ formatDateTime(u.updated_at) }}</td>
                 <td>
@@ -109,10 +99,6 @@
               <option value="viewer">Viewer</option>
             </select>
           </div>
-          <div class="form-field">
-            <label class="field-label">Password</label>
-            <input v-model="editDraft.password" type="password" class="field-input mono" placeholder="Leave blank to keep current" autocomplete="new-password" />
-          </div>
         </div>
         <div v-if="message" class="access-message" :class="{ 'is-error': isError }">{{ message }}</div>
         <div class="modal-actions">
@@ -158,23 +144,6 @@
               @input="onDraftUsernameInput"
             />
             <span v-if="usernameTaken" class="field-hint is-error">Username already taken</span>
-          </div>
-
-          <div class="form-field">
-            <label class="field-label" for="f-pass">Initial Password</label>
-            <div class="field-pw-wrap">
-              <input
-                id="f-pass"
-                v-model="draft.password"
-                :type="showPw ? 'text' : 'password'"
-                class="field-input mono"
-                placeholder="At least 6 characters"
-                autocomplete="new-password"
-              />
-              <button type="button" class="pw-toggle" @click="showPw = !showPw">
-                <component :is="showPw ? I.eyeOff : I.eye" />
-              </button>
-            </div>
           </div>
 
           <div class="form-field">
@@ -226,7 +195,6 @@ interface UserRow {
   id: string;
   username: string;
   name: string;
-  password: string;
   role: string;
   job_title: string;
   created_at?: string;
@@ -243,19 +211,11 @@ const message  = ref('');
 const isError  = ref(false);
 
 const showAdd  = ref(false);
-const showPw   = ref(false);
-const shownPw  = ref(new Set<string>());
-
-function togglePw(id: string) {
-  const s = new Set(shownPw.value);
-  s.has(id) ? s.delete(id) : s.add(id);
-  shownPw.value = s;
-}
-const draft    = reactive({ name: '', username: '', password: '', role: 'manager' });
+const draft    = reactive({ name: '', username: '', role: 'manager' });
 
 const showEdit = ref(false);
-const editDraft = reactive<{ id: string; name: string; username: string; job_title: string; role: string; password: string }>({
-  id: '', name: '', username: '', job_title: '', role: 'manager', password: '',
+const editDraft = reactive<{ id: string; name: string; username: string; job_title: string; role: string }>({
+  id: '', name: '', username: '', job_title: '', role: 'manager',
 });
 
 // ── Computed ──────────────────────────────────────────────────────────────────
@@ -268,7 +228,6 @@ const profileRows   = computed<UserRow[]>(() => {
     id: p.id,
     username: p.username || '',
     name: p.display_name,
-    password: p.password ?? '',
     role: p.role,
     job_title: p.job_title ?? '',
     created_at: p.created_at,
@@ -288,7 +247,7 @@ const canAddUser = computed(() => {
 });
 
 const accountsTitle = computed(() => 'Login accounts');
-const accountsSub   = computed(() => remote ? '' : 'Managers can view and reset passwords for all accounts');
+const accountsSub   = computed(() => remote ? '' : 'Managers can view and manage all accounts');
 
 // ── Row helpers ───────────────────────────────────────────────────────────────
 function initial(name: string): string {
@@ -316,7 +275,7 @@ function canDeleteRow(u: UserRow): boolean {
 
 // ── Edit modal ────────────────────────────────────────────────────────────────
 function openEdit(u: UserRow) {
-  Object.assign(editDraft, { id: u.id, name: u.name, username: u.username, job_title: u.job_title, role: u.role, password: '' });
+  Object.assign(editDraft, { id: u.id, name: u.name, username: u.username, job_title: u.job_title, role: u.role });
   message.value = '';
   isError.value = false;
   showEdit.value = true;
@@ -336,13 +295,12 @@ async function saveEdit() {
   isError.value = false;
 
   if (remote) {
-    const patch: { display_name: string; username: string; job_title: string; role: string; password?: string } = {
+    const patch: { display_name: string; username: string; job_title: string; role: string } = {
       display_name: editDraft.name.trim(),
       username: editDraft.username.trim().toLowerCase(),
       job_title: editDraft.job_title,
       role: editDraft.role,
     };
-    if (editDraft.password.trim()) patch.password = editDraft.password.trim();
     const { error } = await store.update(orig.id, patch);
     saving.value = false;
     if (error) {
@@ -393,7 +351,6 @@ async function loadUsers() {
     id: p.id,
     username: p.username,
     name: p.display_name,
-    password: p.password ?? '',
     role: p.role,
     job_title: '',
   }));
@@ -421,7 +378,6 @@ async function addUser() {
       username,
       name: draft.name.trim(),
       role: draft.role,
-      password: draft.password.trim() || undefined,
     });
     saving.value = false;
     if (error) {
@@ -429,7 +385,7 @@ async function addUser() {
       isError.value = true;
       return;
     }
-    draft.name = ''; draft.username = ''; draft.password = ''; draft.role = 'manager';
+    draft.name = ''; draft.username = ''; draft.role = 'manager';
     message.value = '';
     showAdd.value = false;
     return;
@@ -437,7 +393,7 @@ async function addUser() {
 
   const { data, error } = await createDemoUser({
     username,
-    password: draft.password.trim(),
+    password: 'changeme',
     name: draft.name.trim(),
     role: draft.role,
   });
@@ -447,7 +403,7 @@ async function addUser() {
     isError.value = true;
     return;
   }
-  draft.name = ''; draft.username = ''; draft.password = ''; draft.role = 'manager';
+  draft.name = ''; draft.username = ''; draft.role = 'manager';
   message.value = '';
   showAdd.value = false;
   await loadUsers();

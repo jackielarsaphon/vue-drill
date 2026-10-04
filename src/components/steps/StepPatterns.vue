@@ -18,10 +18,10 @@
     <div class="filter-sel source-pdf-control">
       <span class="mono source-pdf-name">{{ sourcePdfName }}</span>
       <div style="display: flex; gap: 8px">
-        <button type="button" class="btn" data-size="sm" :disabled="locked || isImporting" @click="pdfInput?.click()">
+        <button type="button" class="btn" data-size="sm" :disabled="isImporting" @click="pdfInput?.click()">
           {{ isImporting ? 'Reading...' : 'PDF' }}
         </button>
-        <button type="button" class="btn" data-size="sm" :disabled="locked || isImporting" @click="excelInput?.click()">
+        <button type="button" class="btn" data-size="sm" :disabled="isImporting" @click="excelInput?.click()">
           Excel
         </button>
       </div>
@@ -72,9 +72,12 @@
                 <span class="dim" style="margin-left:8px;font-size:11px">{{ group.rows.length }} patterns</span>
               </td>
             </tr>
-            <tr v-for="(r, i) in group.rows" :key="r.pattern_id" :class="r._warn ? 'import-row-warn' : ''">
+            <tr v-for="(r, i) in group.rows" :key="r.pattern_id" :class="[r._warn ? 'import-row-warn' : '', isLockedSaved(r) ? 'import-row-saved' : '']">
               <td class="c mono dim">{{ i + 1 }}</td>
-              <td class="mono" style="font-size:11px;white-space:nowrap">{{ r.pattern_id }}</td>
+              <td class="mono" style="font-size:11px;white-space:nowrap">
+                {{ r.pattern_id }}
+                <span v-if="isLockedSaved(r)" class="import-saved-tag">บันทึกแล้ว · ไม่เปลี่ยน</span>
+              </td>
               <td class="num r" :class="!r.num_holes ? 'cell-zero' : ''">{{ r.num_holes }}</td>
               <td class="num r" :class="!r.plan_total_drilling_m ? 'cell-zero' : ''">{{ fnum(r.plan_total_drilling_m, 1) }}</td>
               <td class="num r dim">{{ fnum(r.carried_drilling_m, 1) }}</td>
@@ -554,7 +557,6 @@ function updateBlastDate(p, value) {
 
 
 async function importPdf(event) {
-  if (props.locked) return;
   const [file] = event.target.files || [];
   event.target.value = '';
   if (!file) return;
@@ -581,7 +583,6 @@ async function importPdf(event) {
 }
 
 async function importExcel(event) {
-  if (props.locked) return;
   const [file] = event.target.files || [];
   event.target.value = '';
   if (!file) return;
@@ -612,8 +613,9 @@ function confirmImport() {
   const summary = applyImportedRows(importPreview.value);
   sourcePdfName.value = previewFileName.value;
   const skipped = importUnparsedIds.value.length;
-  sourceStatus.value = `Imported ${importPreview.value.length} rows. Added ${summary.added}, updated ${summary.updated}.${skipped ? ` (${skipped} patterns found but not parsed)` : ''}`;
-  flash.value = `นำเข้าสำเร็จ: เพิ่ม ${summary.added}, อัปเดต ${summary.updated}, carried ${summary.carried}.${skipped ? ` ⚠️ ${skipped} pattern ไม่ครบข้อมูล — เพิ่มมือ` : ''}`;
+  const kept = summary.skippedSaved;
+  sourceStatus.value = `Imported ${importPreview.value.length} rows. Added ${summary.added}, updated ${summary.updated}.${kept ? ` Kept ${kept} saved patterns unchanged.` : ''}${skipped ? ` (${skipped} patterns found but not parsed)` : ''}`;
+  flash.value = `นำเข้าสำเร็จ: เพิ่ม ${summary.added}, อัปเดต ${summary.updated}, carried ${summary.carried}.${kept ? ` ข้าม ${kept} pattern ที่บันทึกแล้ว (read-only).` : ''}${skipped ? ` ⚠️ ${skipped} pattern ไม่ครบข้อมูล — เพิ่มมือ` : ''}${props.locked && summary.added ? ' — กด Save plan เพื่อบันทึก' : ''}`;
   importPreview.value = null;
   importUnparsedIds.value = [];
   importSkippedSections.value = 0;
@@ -627,14 +629,31 @@ function discardImport() {
   importSkippedSections.value = 0;
 }
 
+function findPattern(row) {
+  return patterns.value.find((p) => p.pattern_id === row.pattern_id && Number(p.week_id) === Number(row.week_id));
+}
+
+// Once the weekly plan is saved, saved patterns stay read-only (same as the
+// table) — an import may only add new patterns or refresh unsaved ones.
+function isLockedSaved(row) {
+  if (!props.locked) return false;
+  const existing = findPattern(row);
+  return Boolean(existing && !existing._unsaved);
+}
+
 function applyImportedRows(importedRows) {
   let added = 0;
   let updated = 0;
   let carried = 0;
+  let skippedSaved = 0;
   let firstAddedPit = '';
 
   for (const row of importedRows) {
-    const existing = patterns.value.find((p) => p.pattern_id === row.pattern_id && p.week_id === row.week_id);
+    const existing = findPattern(row);
+    if (isLockedSaved(row)) {
+      skippedSaved += 1;
+      continue;
+    }
     if (existing) {
       // Keep blast-confirmed fields if the pattern has already been blasted
       const preserve = existing.blast_td_updated
@@ -646,6 +665,7 @@ function applyImportedRows(importedRows) {
       updated += 1;
       continue;
     }
+    if (props.locked) row._unsaved = true;
     patterns.value.push(row);
     if (!firstAddedPit) firstAddedPit = row.pit_name;
     if (isCarryoverSignal(row)) carried += 1;
@@ -654,7 +674,7 @@ function applyImportedRows(importedRows) {
 
   if (added + updated + carried > 0) pit.value = firstAddedPit || pit.value;
   touch();
-  return { added, updated, carried, skippedDuplicate: 0 };
+  return { added, updated, carried, skippedSaved, skippedDuplicate: 0 };
 }
 
 function setImportStatus(importType, fileName, sourceReadText, foundPatternCount, summary) {
@@ -935,6 +955,17 @@ onUnmounted(() => clearTimeout(flashTimer));
   border-top: 2px solid var(--line);
 }
 .cell-zero { color: var(--red, #c00); font-weight: 600; }
+.import-row-saved td { color: var(--ink-3); }
+.import-row-saved td.cell-zero { color: var(--ink-3); font-weight: 400; }
+.import-saved-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--ink-2);
+  background: var(--surface-2, #f4f4f5);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
 .cell-default { color: var(--ink-3); }
 
 .pattern-input {

@@ -34,6 +34,17 @@ function configuredClient() {
   return supabase
 }
 
+// PostgREST answers a unique-key clash with HTTP 409 / code 23505; the only
+// unique column a user can hit here is username.
+function isDuplicateUsername(err: any): boolean {
+  return err?.code === '23505'
+}
+
+// The browser only logs "409" for a failed request; spell out why.
+function logDbError(op: string, err: any) {
+  console.error(`[userAccess.${op}] error:`, err?.code, err?.message, err?.details ?? '', err?.hint ?? '')
+}
+
 function normalizeProfile(p: Partial<Profile>): Profile {
   return {
     id:           String(p.id || ''),
@@ -75,9 +86,9 @@ export const useUserAccessStore = defineStore('userAccess', () => {
   const create = async (data: CreateProfileInput) => {
     loading.value = true
     error.value   = ''
+    const username = data.username.trim().toLowerCase()
     try {
       const sb       = configuredClient()
-      const username = data.username.trim().toLowerCase()
       const displayName = data.name.trim()
       const role     = ['admin', 'manager', 'viewer'].includes(data.role) ? data.role : 'manager'
 
@@ -98,6 +109,12 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       await getAll()
       return { error: null as Error | null }
     } catch (err: any) {
+      logDbError('create', err)
+      if (isDuplicateUsername(err)) {
+        // The list was stale (another tab or admin added it) — show it now.
+        await getAll()
+        return { error: new Error(`Username "${username}" already exists.`) }
+      }
       error.value = err?.message ?? String(err)
       return { error: err instanceof Error ? err : new Error(error.value) }
     } finally {
@@ -108,9 +125,9 @@ export const useUserAccessStore = defineStore('userAccess', () => {
   const update = async (id: string, data: UpdateProfileInput) => {
     loading.value = true
     error.value   = ''
+    const patch: Record<string, unknown> = {}
     try {
       const sb    = configuredClient()
-      const patch: Record<string, unknown> = {}
 
       if (data.display_name !== undefined) patch.display_name = data.display_name.trim()
       if (data.username !== undefined) {
@@ -130,6 +147,11 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       await getAll()
       return { error: null as Error | null }
     } catch (err: any) {
+      logDbError('update', err)
+      if (isDuplicateUsername(err)) {
+        await getAll()
+        return { error: new Error(`Username "${patch.username}" already exists.`) }
+      }
       error.value = err?.message ?? String(err)
       return { error: err instanceof Error ? err : new Error(error.value) }
     } finally {
@@ -148,6 +170,7 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       await getAll()
       return { error: null as Error | null }
     } catch (err: any) {
+      logDbError('destroy', err)
       error.value = err?.message ?? String(err)
       return { error: err instanceof Error ? err : new Error(error.value) }
     } finally {

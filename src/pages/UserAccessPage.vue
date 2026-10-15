@@ -100,6 +100,7 @@
           <div class="form-field">
             <label class="field-label">Username</label>
             <input v-model="editDraft.username" class="field-input mono" />
+            <span v-if="editUsernameTaken" class="field-hint is-error">Username already taken</span>
           </div>
           <div class="form-field">
             <label class="field-label">Role</label>
@@ -117,7 +118,7 @@
         <div v-if="message" class="access-message" :class="{ 'is-error': isError }">{{ message }}</div>
         <div class="modal-actions">
           <button type="button" class="btn" @click="closeEdit">Cancel</button>
-          <button type="button" class="btn" data-variant="primary" :disabled="saving" @click="saveEdit">
+          <button type="button" class="btn" data-variant="primary" :disabled="saving || editUsernameTaken" @click="saveEdit">
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </div>
@@ -276,6 +277,11 @@ const profileRows   = computed<UserRow[]>(() => {
   }));
 });
 const usernameTaken = computed(() => profileRows.value.some((u) => u.username === draft.username.trim().toLowerCase()));
+// Renaming onto another account's username would hit the unique key (HTTP 409).
+const editUsernameTaken = computed(() => {
+  const u = editDraft.username.trim().toLowerCase();
+  return Boolean(u) && profileRows.value.some((row) => row.id !== editDraft.id && row.username === u);
+});
 const canSubmitAdd  = computed(() =>
   draft.name.trim().length > 0 &&
   draft.username.trim().length > 0 &&
@@ -330,7 +336,12 @@ function closeEdit() {
 
 async function saveEdit() {
   const orig = profileRows.value.find((x) => x.id === editDraft.id);
-  if (!orig) return;
+  if (!orig || saving.value) return;
+  if (editUsernameTaken.value) {
+    message.value = 'Username already exists.';
+    isError.value = true;
+    return;
+  }
   saving.value = true;
   message.value = '';
   isError.value = false;
@@ -401,6 +412,7 @@ async function loadUsers() {
 
 // ── Add user ──────────────────────────────────────────────────────────────────
 async function addUser() {
+  if (saving.value) return;
   const username = draft.username.trim().toLowerCase();
   if (!draft.name.trim() || !username) {
     message.value = 'Please fill in Display Name and Username.';

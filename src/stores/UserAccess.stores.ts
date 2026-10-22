@@ -34,10 +34,15 @@ function configuredClient() {
   return supabase
 }
 
-// PostgREST answers a unique-key clash with HTTP 409 / code 23505; the only
-// unique column a user can hit here is username.
-function isDuplicateUsername(err: any): boolean {
-  return err?.code === '23505'
+// PostgREST answers a unique-key clash with HTTP 409 / code 23505, and the
+// message names the constraint (tdl_profiles_<column>_key). Returns a message
+// for the user, or null when it isn't a unique-key clash.
+function duplicateMessage(err: any, username: unknown): string | null {
+  if (err?.code !== '23505') return null
+  const column = String(err?.message ?? '').match(/tdl_profiles_(\w+?)_key/)?.[1]
+  if (column === 'username') return `Username "${username}" already exists.`
+  if (column === 'password') return 'Another account already uses this password — choose a different one.'
+  return `Another account already has this ${column || 'value'}.`
 }
 
 // The browser only logs "409" for a failed request; spell out why.
@@ -110,10 +115,11 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       return { error: null as Error | null }
     } catch (err: any) {
       logDbError('create', err)
-      if (isDuplicateUsername(err)) {
-        // The list was stale (another tab or admin added it) — show it now.
+      const duplicate = duplicateMessage(err, username)
+      if (duplicate) {
+        // The list may be stale (another tab or admin added it) — show it now.
         await getAll()
-        return { error: new Error(`Username "${username}" already exists.`) }
+        return { error: new Error(duplicate) }
       }
       error.value = err?.message ?? String(err)
       return { error: err instanceof Error ? err : new Error(error.value) }
@@ -148,9 +154,10 @@ export const useUserAccessStore = defineStore('userAccess', () => {
       return { error: null as Error | null }
     } catch (err: any) {
       logDbError('update', err)
-      if (isDuplicateUsername(err)) {
+      const duplicate = duplicateMessage(err, patch.username)
+      if (duplicate) {
         await getAll()
-        return { error: new Error(`Username "${patch.username}" already exists.`) }
+        return { error: new Error(duplicate) }
       }
       error.value = err?.message ?? String(err)
       return { error: err instanceof Error ? err : new Error(error.value) }

@@ -49,7 +49,7 @@
       :week="week"
       :locked="patternsSaved"
       :initial-pit="importedPit"
-      @plan-saved="patternsSaved = true"
+      @plan-saved="onPatternsSaved"
       @next="advanceTo(3)"
       @back="step = 1"
     />
@@ -134,6 +134,13 @@ function goToStep(n) {
 function advanceTo(n) {
   unlockedUpTo.value = Math.max(unlockedUpTo.value, n);
   step.value = n;
+}
+
+// Same rule as when a week loads with saved patterns: every step, Blast
+// included, is open — not only after pressing Next on the Drill log.
+function onPatternsSaved() {
+  patternsSaved.value = true;
+  unlockedUpTo.value = Math.max(unlockedUpTo.value, 4);
 }
 
 // Load data whenever the week changes

@@ -398,6 +398,8 @@ function nextPitPriority(pitName) {
 }
 
 function riskForNew(plannedBlastDate, drillingPct) {
+  // new Date(null) is 1970-01-01, which would read as long overdue.
+  if (!plannedBlastDate) return 'on-track';
   const d = plannedBlastDate instanceof Date ? plannedBlastDate : new Date(plannedBlastDate);
   if (!d || isNaN(d.getTime())) return 'on-track';
   const daysToBlast = Math.round((d.getTime() - TODAY.getTime()) / 86400000);
@@ -717,7 +719,9 @@ function buildPatternRow(pitName) {
     actual_blast_vol_bcm: 0,
     blast_td_updated: false,
     status: 'pending',
-    risk: 'no-date',
+    // tdl_patterns_risk_check only allows on-track / at-risk / delayed; a
+    // pattern without a blast date counts as on-track (see riskForNew).
+    risk: riskForNew(null, 0),
     blast_area_m2: Math.round(num_holes * 45),
   };
 }

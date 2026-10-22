@@ -24,6 +24,8 @@ function isoDate(d: any): string | null {
   return s || null
 }
 
+const DB_RISKS = ['on-track', 'at-risk', 'delayed']
+
 function toDbRow(p: any) {
   return {
     pattern_id:            p.pattern_id,
@@ -48,7 +50,9 @@ function toDbRow(p: any) {
     blast_td_updated:      p.blast_td_updated      ?? false,
     blast_area_m2:         p.blast_area_m2         ?? 0,
     status:                p.status                ?? 'pending',
-    risk:                  p.risk                  ?? 'on-track',
+    // Must match tdl_patterns_risk_check; UI-only values such as 'no-date'
+    // would fail the whole save.
+    risk:                  DB_RISKS.includes(p.risk) ? p.risk : 'on-track',
     carried_from_id:       p.carried_from_id       ?? null,
   }
 }

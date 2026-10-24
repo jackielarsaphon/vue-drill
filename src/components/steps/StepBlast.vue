@@ -50,7 +50,7 @@
             <th class="r">Blast Volume TD</th>
             <th class="r">Drilled %</th>
             <th>Status</th>
-            <th style="width: 40px" />
+            <th style="width: 64px" />
           </tr>
         </thead>
         <tbody>
@@ -123,6 +123,9 @@
                 <button type="button" class="row-save" title="Save this row" @click="saveRow(p)">
                   <component :is="I.check" />
                 </button>
+                <button type="button" class="row-save row-delete" title="Delete this row" @click="deleteRow(p)">
+                  <component :is="I.x" />
+                </button>
               </div>
             </td>
           </tr>
@@ -145,6 +148,29 @@
         </div>
       </div>
     </Card>
+
+    <div v-if="pendingDelete" class="modal-backdrop" @click.self="cancelDelete">
+      <div class="modal-panel" role="alertdialog" aria-modal="true" aria-labelledby="blast-delete-title">
+        <div class="modal-head">
+          <h2 id="blast-delete-title">คุณต้องการลบหรือไม่</h2>
+          <button type="button" class="btn" data-variant="ghost" data-size="sm" :disabled="deleting" @click="cancelDelete">
+            <component :is="I.x" />
+          </button>
+        </div>
+        <p class="modal-text">ลบ <strong class="mono">{{ pendingDelete.row.pattern_id }}</strong> ออกจากฐานข้อมูล</p>
+        <p v-if="pendingDelete.logCount" class="modal-warn">
+          บันทึกการเจาะของ pattern นี้ {{ pendingDelete.logCount }} รายการ
+          ({{ commaNumber(pendingDelete.metres) }} m) จะถูกลบไปด้วย
+        </p>
+        <p class="modal-note">ลบแล้วกู้คืนไม่ได้</p>
+        <div class="modal-actions">
+          <button type="button" class="btn" :disabled="deleting" @click="cancelDelete">ยกเลิก</button>
+          <button type="button" class="btn confirm-delete" :disabled="deleting" @click="confirmDelete">
+            {{ deleting ? 'กำลังลบ…' : 'ลบ' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -423,6 +449,57 @@ async function saveRow(row) {
     : `Saved ${row.pattern_id}.`;
 }
 
+// A blast row is the week's tdl_patterns row, and tdl_drill_log cascades with
+// it (ON DELETE CASCADE) — so the confirm popup spells out the drilling that
+// goes too.
+const pendingDelete = ref(null); // { row, logCount, metres }
+const deleting = ref(false);
+
+function drillLogsOf(row) {
+  return drillLogStore.drillLog.filter(
+    (e) => e.pattern_id === row.pattern_id && Number(e.week_id) === Number(row.week_id),
+  );
+}
+
+function deleteRow(row) {
+  const logs = drillLogsOf(row);
+  pendingDelete.value = {
+    row,
+    logCount: logs.length,
+    metres: logs.reduce((s, e) => s + Number(e.total_drilling_m || 0) + Number(e.redrill_m || 0), 0),
+  };
+}
+
+function cancelDelete() {
+  if (!deleting.value) pendingDelete.value = null;
+}
+
+async function confirmDelete() {
+  const row = pendingDelete.value?.row;
+  if (!row || deleting.value) return;
+  deleting.value = true;
+  try {
+    if (row.id) {
+      const logs = drillLogsOf(row);
+      const { error } = await patternsStore.deleteById(row.id);
+      if (error) {
+        saveMessage.value = `Error deleting ${row.pattern_id}: ${error.message ?? error}`;
+        return;
+      }
+      if (logs.length) drillLogStore.drillLog = drillLogStore.drillLog.filter((e) => !logs.includes(e));
+    } else {
+      // Never saved — only in memory.
+      const index = patterns.value.indexOf(row);
+      if (index >= 0) patterns.value.splice(index, 1);
+    }
+    touch();
+    saveMessage.value = `Deleted ${row.pattern_id}.`;
+  } finally {
+    deleting.value = false;
+    pendingDelete.value = null;
+  }
+}
+
 function hasBlastDate(row) {
   const value = row.planned_blast_date;
   if (!value) return false;
@@ -583,6 +660,49 @@ watchEffect(() => {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--surface-2);
+}
+
+.row-delete:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  display: grid; place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.35);
+}
+.modal-panel {
+  width: min(400px, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.modal-head {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+  margin-bottom: 12px;
+}
+.modal-head h2 { margin: 0; font-size: 16px; }
+.modal-text { margin: 0; font-size: 13px; color: var(--ink); }
+.modal-warn {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--red);
+  background: var(--surface-2);
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+}
+.modal-note { margin: 10px 0 0; font-size: 12px; color: var(--ink-3); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal-actions .btn.confirm-delete {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
 }
 
 .row-save :deep(svg) {

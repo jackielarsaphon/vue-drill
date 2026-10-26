@@ -41,6 +41,9 @@
           <template v-if="importUnparsedIds.length">
             — <span style="color:var(--red,#c00);font-weight:600">⚠️ {{ importUnparsedIds.length }} pattern ไม่ครบข้อมูล: {{ importUnparsedIds.join(', ') }}</span>
           </template>
+          <template v-if="importOcrCount">
+            — <span class="import-ocr-note">{{ importOcrCount }} pattern อ่านจากรูปภาพ (OCR) — แถวสีเหลือง เทียบตัวเลขกับไฟล์ก่อน</span>
+          </template>
           — ตรวจสอบทุกคอลัมน์ก่อนกด Confirm
         </span>
       </div>
@@ -306,6 +309,8 @@ const isPitAllUnsaved = computed(() => {
   return pitRows.length > 0 && pitRows.every((r) => r._unsaved);
 });
 
+const importOcrCount = computed(() => (importPreview.value || []).filter((r) => r._ocr).length);
+
 const importPreviewGroups = computed(() => {
   if (!importPreview.value) return [];
   const groups = new Map();
@@ -564,8 +569,15 @@ async function importPdf(event) {
   if (!file) return;
 
   isImporting.value = true;
+  // A page whose table is a picture is read with OCR, which takes seconds — say so.
+  let showedStatus = false;
   try {
-    const result = await extractPlanRowsFromPdf(file, patterns.value, props.week);
+    const result = await extractPlanRowsFromPdf(file, patterns.value, props.week, {
+      onStatus: (text) => {
+        showedStatus = true;
+        sourceStatus.value = text;
+      },
+    });
     if (!result.rows.length) {
       flash.value = 'ไม่พบข้อมูล pattern ในไฟล์ PDF นี้';
       clearFlash(6000);
@@ -581,6 +593,7 @@ async function importPdf(event) {
     clearFlash(6000);
   } finally {
     isImporting.value = false;
+    if (showedStatus) sourceStatus.value = '';
   }
 }
 
@@ -959,6 +972,8 @@ onUnmounted(() => clearTimeout(flashTimer));
   border-top: 2px solid var(--line);
 }
 .cell-zero { color: var(--red, #c00); font-weight: 600; }
+.import-row-warn td { background: rgba(245, 158, 11, 0.12); }
+.import-ocr-note { color: var(--amber, #b7791f); font-weight: 600; }
 .import-row-saved td { color: var(--ink-3); }
 .import-row-saved td.cell-zero { color: var(--ink-3); font-weight: 400; }
 .import-saved-tag {

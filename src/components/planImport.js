@@ -2,6 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { WEEK, TODAY, addDays } from './data.js';
+import { createPdfOcr } from './pdfOcr.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -325,6 +326,10 @@ function numericColumns(afterPattern, parts) {
         if (values[i] <= 0) continue;
         if (best < 0 || Math.abs(values[i] - expected) < Math.abs(values[best] - expected)) best = i;
       }
+      // The short layout — BlastArea, TotalDrilling, Stemming, Holes, Volume — is
+      // read by position: the holes × depth guess lands on the area whenever the
+      // plan's hole count is off (Week 44 DSW04B_170RL_5M_109_TRI).
+      if (vIdx === 4 && values[2] > 0 && values[2] <= 50 && values[1] > 0) best = 1;
       const plan = best >= 0 ? values[best] : expected;
       if (volume >= holes && holes > 0 && plan > 0) {
         console.log('[parse] LXML(no-bit) vIdx=' + vIdx + ' → holes=' + holes + ' plan=' + plan + ' vol=' + volume);
@@ -587,7 +592,14 @@ function extractPdfBlastDates(rows, year) {
   return { byId, byOrder };
 }
 
-export async function extractPlanRowsFromPdf(file, existingRows, week = WEEK) {
+// Pit named in a page title such as "DSW04B Drill and Blast Week44 (TD - VDC) P1".
+function titlePit(header) {
+  return String(header || '').match(/\b([A-Z]{2,}[0-9]{1,3}[A-Z]?)\s+Drill\b/)?.[1] || '';
+}
+
+// options.onStatus(text) reports progress (OCR is slow); options.createCanvas is
+// only for running outside a browser.
+export async function extractPlanRowsFromPdf(file, existingRows, week = WEEK, options = {}) {
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const year = scheduleYear(week);
@@ -598,32 +610,31 @@ export async function extractPlanRowsFromPdf(file, existingRows, week = WEEK) {
   let skippedPages = 0;
   const foundPatternIds = new Set();
   const allPageLines = [];
+  const ocrPages = [];
+  const ocrBlastDates = new Map();
+  let ocr = null;
 
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
-    const page = await pdf.getPage(pageNo);
-    const textContent = await page.getTextContent();
-    const lines = rowObjects(textContent);
-    allPageLines.push(lines);
+  // An OCR line counts only with the table's own numbers after the pattern ID
+  // (area, drilling, stemming, holes, volume) — otherwise parseTableRow would
+  // estimate them, e.g. from a line where OCR caught just "1,706".
+  function ocrLineIsRow(candidate) {
+    const [match] = findPatternMatches(candidate);
+    if (!match) return false;
+    const after = candidate.slice(match.index + match.raw.length);
+    return (stripDateText(after).match(NUM_RE) || []).length >= 5;
+  }
 
-    const pageHeader = lines.slice(0, 6).map((l) => l.line).join(' ');
-    if (!isThaiDrillSection(pageHeader)) {
-      console.log('[import] skip page', pageNo, '— not Thai drill:', pageHeader.slice(0, 80));
-      skippedPages += 1;
-      continue;
-    }
-
-    const candidates = rowCandidates(lines);
-    textLines += lines.length;
+  function addCandidates(candidates, fromOcr) {
     for (const candidate of candidates) {
-      for (const match of findPatternMatches(candidate)) {
-        foundPatternIds.add(match.pattern_id);
-      }
-    }
-    for (const candidate of candidates) {
+      if (fromOcr && !ocrLineIsRow(candidate)) continue;
       const currentRows = [...rowQualityMap.values()].map((e) => e.row);
       const row = parseTableRow(candidate, [...existingRows, ...currentRows], week);
       if (!row) continue;
       const q = parseQuality(row);
+      if (fromOcr) {
+        row._ocr = true;
+        row._warn = true;
+      }
       const existing = rowQualityMap.get(row.pattern_id);
       if (!existing) {
         rowQualityMap.set(row.pattern_id, { row, quality: q, index: rowQualityMap.size });
@@ -634,10 +645,75 @@ export async function extractPlanRowsFromPdf(file, existingRows, week = WEEK) {
     }
   }
 
+  try {
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+      const page = await pdf.getPage(pageNo);
+      const textContent = await page.getTextContent();
+      const lines = rowObjects(textContent);
+      allPageLines.push(lines);
+
+      const pageHeader = lines.slice(0, 6).map((l) => l.line).join(' ');
+      if (!isThaiDrillSection(pageHeader)) {
+        console.log('[import] skip page', pageNo, '— not Thai drill:', pageHeader.slice(0, 80));
+        skippedPages += 1;
+        continue;
+      }
+
+      const candidates = rowCandidates(lines);
+      textLines += lines.length;
+      const pageIds = new Set();
+      for (const candidate of candidates) {
+        for (const match of findPatternMatches(candidate)) pageIds.add(match.pattern_id);
+      }
+      if (pageIds.size) {
+        pageIds.forEach((id) => foundPatternIds.add(id));
+        addCandidates(candidates, false);
+        continue;
+      }
+
+      // A Thai Drill page with no pattern text: its table is a picture — OCR it.
+      console.log('[import] page', pageNo, 'has no pattern text — reading it with OCR');
+      options.onStatus?.(`อ่านตารางจากรูปภาพ (OCR) หน้า ${pageNo}…`);
+      ocr ??= createPdfOcr({ createCanvas: options.createCanvas });
+      const { passes, blastDates: pageDates } = await ocr.readTablePage(page, {
+        pit: titlePit(pageHeader),
+        parseDate: (text) => parseDayDate(text, year),
+        patternIdOf: (text) => findPatternMatches(normalizeLine(text))[0]?.pattern_id,
+      });
+      ocrPages.push(pageNo);
+      pageDates.forEach((date, id) => ocrBlastDates.set(id, date));
+      // OCR lines are already whole table rows, so no multi-line spans — those
+      // would pull in the "Total … per day" rows under the table.
+      const firstIndex = rowQualityMap.size;
+      const rowTop = new Map(); // pattern ID → y of its row
+      for (const passLines of passes) {
+        const ocrCandidates = passLines.map((l) => normalizeLine(l.line));
+        passLines.forEach((l, i) => {
+          for (const match of findPatternMatches(ocrCandidates[i])) {
+            foundPatternIds.add(match.pattern_id);
+            if (!rowTop.has(match.pattern_id)) rowTop.set(match.pattern_id, l.cy);
+          }
+        });
+        addCandidates(ocrCandidates, true);
+      }
+      // OCR doesn't catch the small "No" column, so number the rows top to bottom
+      // (after any of the pit's existing patterns) and list them in that order.
+      const ordered = [...rowQualityMap.entries()]
+        .filter(([, e]) => e.index >= firstIndex)
+        .sort(([a], [b]) => (rowTop.get(a) ?? 0) - (rowTop.get(b) ?? 0));
+      ordered.forEach(([, e], k) => {
+        e.index = firstIndex + k;
+        e.row.pit_priority = nextPitPriority(e.row.pit_name, existingRows) + k;
+      });
+    }
+  } finally {
+    await ocr?.terminate();
+  }
+
   const rows = [...rowQualityMap.values()].sort((a, b) => a.index - b.index).map((e) => e.row);
 
   // Phase 2 — extract blast dates from all pages; apply ID match, then row-order fallback
-  const blastDates = new Map();
+  const blastDates = new Map(ocrBlastDates);
   let orderDates = [];
   for (const lines of allPageLines) {
     const { byId, byOrder } = extractPdfBlastDates(lines, year);
@@ -663,6 +739,7 @@ export async function extractPlanRowsFromPdf(file, existingRows, week = WEEK) {
     rows,
     pages: pdf.numPages,
     skippedPages,
+    ocrPages,
     textLines,
     foundPatternCount: foundPatternIds.size,
     unparsedPatternIds: [...foundPatternIds].filter((id) => !parsedIds.has(id)).sort(),

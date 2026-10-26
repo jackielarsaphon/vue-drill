@@ -16,12 +16,16 @@ const NUM_RE = /\b[0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?\b/g;
 
 export { PATTERN_RE, PATTERN_TYPES };
 
-// Thai Drill sections are titled "Thai Drill" (any separator, e.g. "Thai – Drill")
-// or by the short TD label used on LXML plans, e.g. "( TD-MVDC )".
-const TD_SECTION_RE = /\bTD\s*[-–]\s*[A-Z]{2,}/i;
+// Thai Drill sections are titled "Thai Drill" (any separator, e.g. "Thai – Drill"),
+// by the short TD label used on LXML plans, e.g. "( TD-MVDC )", or by a bare
+// "TD". The bare form must be a standalone upper-case word, so MTD, YTD, TDL or
+// blast_td_updated don't count.
+const TD_CODE_RE = /\bTD\s*[-–]\s*[A-Z]{2,}/i;
+const TD_WORD_RE = /(^|[^A-Za-z0-9_])TD(?![A-Za-z0-9_])/;
 
 function hasTdSectionLabel(text) {
-  return TD_SECTION_RE.test(String(text || ''));
+  const s = String(text || '');
+  return TD_CODE_RE.test(s) || TD_WORD_RE.test(s);
 }
 
 function isThaiDrillSection(text) {
